@@ -1,0 +1,95 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+idaes_models/python_c_wrapper/wrapper/COPYING
+idaes_models/python_c_wrapper/wrapper/Makefile.in
+idaes_models/python_c_wrapper/wrapper/test_wrapper
+idaes_models/python_c_wrapper/wrapper/.deps
+idaes_models/python_c_wrapper/wrapper/.libs
+idaes_models/python_c_wrapper/wrapper/aclocal.m4
+idaes_models/python_c_wrapper/wrapper/ar-lib
+idaes_models/python_c_wrapper/wrapper/autom4te.cache/
+idaes_models/python_c_wrapper/wrapper/compile
+idaes_models/python_c_wrapper/wrapper/config.guess
+idaes_models/python_c_wrapper/wrapper/config.h
+idaes_models/python_c_wrapper/wrapper/config.h.in
+idaes_models/python_c_wrapper/wrapper/config.status
+idaes_models/python_c_wrapper/wrapper/config.sub
+idaes_models/python_c_wrapper/wrapper/depcomp
+idaes_models/python_c_wrapper/wrapper/libtool
+idaes_models/python_c_wrapper/wrapper/libwrapper.la
+idaes_models/python_c_wrapper/wrapper/libwrapper_la-wrapper.lo
+idaes_models/python_c_wrapper/wrapper/libwrapper_la-wrapper.o
+idaes_models/python_c_wrapper/wrapper/ltmain.sh
+idaes_models/python_c_wrapper/wrapper/m4/
+idaes_models/python_c_wrapper/wrapper/missing
+idaes_models/python_c_wrapper/wrapper/stamp-h1
+idaes_models/python_c_wrapper/prop_lib/
+
+# Distribution / packaging
+
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*,cover
+.hypothesis/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+
+# Sphinx documentation
+docs/_build/
+docs/source/
+
+# PyBuilder
+target/
+
+#Ipython Notebook
+.ipynb_checkpoints
+idaes_models/process/superstructure_synthesis/ruiz_water/init_results.csv
+
+# BARON
+options
+
+# Wrapper
+autom4te.cache/

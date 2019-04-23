@@ -1,0 +1,19 @@
+general:
+    build_dir: .
+
+machine:
+  services:
+    - docker
+
+dependencies:
+  override:
+    - set -o pipefail && docker build -t idaes_models . | tee ~/docker_build_output.txt
+    - cp ~/docker_build_output.txt ${CIRCLE_ARTIFACTS}
+    
+test:
+  override:
+    # For now just look in tests, eventually remove "-s tests/"
+    - docker run idaes_models bash -c 'source activate python2 && nosetests --with-coverage --cover-package=idaes_models --cover-inclusive --with-xunit --xunit-file=/tmp/nosetests.xml && codecov --token=a78ea884-58a4-4d19-b994-afe130066085'
+
+    # Copy the nosetests.xml file out of the last container into where CircleCI will find it.
+    - docker cp $(docker ps -alq):/tmp/nosetests.xml ${CIRCLE_TEST_REPORTS}/nosetests.xml

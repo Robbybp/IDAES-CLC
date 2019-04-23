@@ -1,0 +1,89 @@
+#!/usr/bin/env python
+"""
+Run a given model.
+
+Example usage:
+
+    run_model --module idaes_models.unit.solvent.mea_adsorber_v1.model
+    # or, equivalently:
+    run_model --dir idaes_models/unit/solvent/mea_adsorber_v1
+    
+"""
+__author__ = 'Dan Gunter <dkgunter@lbl.gov>'
+__date__ = '3/9/16'
+
+## Imports
+
+# Stdlib
+import argparse
+import glob
+from importlib import import_module
+import os
+import re
+import runpy
+
+## Classes and functions
+
+class MyImportError(Exception):
+    pass
+
+def import_path(m):
+    try:
+        module = import_module(m, package='solvent_models')
+        _ = module.Model
+    except Exception as err:
+        raise MyImportError(str(err))
+    return module
+
+class PseudoModule(object):
+    def __init__(self, model_class):
+        self.Model = model_class
+
+def import_dir(d):
+    if not os.path.exists(d):
+        raise MyImportError('Directory does not exist')
+    if not os.path.isdir(d):
+        raise MyImportError('Path is not a directory')
+    file_with_model = None
+    for pyfile in glob.glob(os.path.join(d, '*.py')):
+        with open(pyfile) as f:
+            for line in f:
+                if re.match('^class\s+Model.*:', line):
+                    file_with_model = pyfile
+                    break
+    if file_with_model is None:
+        raise MyImportError('No Python file with "class Model" found')
+    globals = runpy.run_path(file_with_model)
+    return PseudoModule(globals['Model'])
+
+def main():
+    p = argparse.ArgumentParser()
+    g = p.add_mutually_exclusive_group()
+    g.add_argument('--module', dest='imodule', help='Module with the Model class, '
+                                                    'e.g., "solvent_models.demo_model"')
+    g.add_argument('--dir', dest='idir', help='Directory with a Python file with the Model class, '
+                                  'e.g. "./solvent_models". First file with that class will be chosen.')
+    args = p.parse_args()
+    if not args.imodule and not args.idir:
+        p.error('choose one of --module or --dir')
+
+    try:
+        if args.imodule:
+            what = 'module "{}"'.format(args.imodule)
+            mm = import_path(args.imodule)
+        elif args.idir:
+            what = 'modules in directory "{}"'.format(args.idir)
+            mm = import_dir(args.idir)
+    except MyImportError as err:
+        p.error('Could not import {}: {}'.format(what, err))
+
+    # Standard sequence for creating, running, etc. a model
+    model = mm.Model()
+    model.configure()
+    model.solve()
+    model.display()
+
+## Main
+
+if __name__ == "__main__":
+    main()
