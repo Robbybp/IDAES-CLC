@@ -744,7 +744,7 @@ class _MB(UnitModel):
                                  doc = 'Gas comp. thermal conductivity [J/(m.K.s)]')
 
         def rule_eq_p15(b,z,i,j):
-            return (1 + ((b.k_comp[z,i]/b.k_comp[z,i])**0.5) \
+            return (1 + ((b.k_comp[z,j]/b.k_comp[z,i])**0.5) \
                         * ((b.MW[j]/b.MW[i])**0.25))**2 \
                         / (8*(1+(b.MW[j]/b.MW[i])))**0.5    
         self.A_bin = Expression(self.z, self.GasList, self.gcomp, rule=rule_eq_p15,
