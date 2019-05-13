@@ -25,12 +25,17 @@ from pyomo.core.base.indexed_component import IndexedComponent
 #from pyomo.environ import *
 from pyomo.opt import SolverFactory
 
+from pyomo.dae import DerivativeVar, ContinuousSet, Simulator
+
 import time
+
+import scipy
+import casadi
 
 from idaes_models.core import FlowsheetModel, ProcBlock
 import MB_CLC as MB_CLC_fuel
 import ss_sim
-from CLC_integrate import alg_update, integrate
+from CLC_integrate import alg_update, integrate, update_time_derivatives, implicit_integrate
 
 import pdb
 
@@ -96,13 +101,14 @@ class _Flowsheet(FlowsheetModel):
         # how long of a horizon should I simulate?
         #
         # why is nfe in z-dimension not an input here?
+        # controlled by fe_set...
         self.MB_fuel = MB_CLC_fuel.MB(
                 parent=self,
                 dae_method = 'OCLR',
                 press_drop = 'Ergun',
                 fe_set = fe_set,
                 ncp = 3,
-                horizon = 1, # was 10
+                horizon = 0.01, # was 10, then 1, then 10^-2, then 10^-4, now back to 1...
                 nfe_t = 1,   #  "  "
                 ncp_t = 3)
 
@@ -131,14 +137,26 @@ def setInputs(fs):
     fs.MB_fuel.L.fix(5) # m
     fs.MB_fuel.eps.fix(0.4) # (-)   
 
-def perturbInputs(fs):
-    t_1 = fs.MB_fuel.t.get_finite_elements()[1]
-    for t in fs.MB_fuel.t:
-        if t < t_1:
-            #print(t)
-            fs.MB_fuel.Solid_In_M[t].fix(691.4)
-            #fs.MB_fuel.Solid_In_x['Fe2O3',t].fix(0.46)
-            #fs.MB_fuel.Solid_In_x['Al2O3',t].fix(0.54)
+def perturbInputs(fs,t,**kwargs):
+    m = fs.MB_fuel
+    if 'Solid_M' in kwargs:
+        m.Solid_In_M[t].fix( kwargs['Solid_M'] )
+    if 'Solid_T' in kwargs:
+        m.Solid_In_Ts[t].fix( kwargs['Solid_T'] )
+    if 'Solid_x' in kwargs:
+        m.Solid_In_x['Fe2O3',t].fix( kwargs['Solid_x']['Fe2O3'] )
+        m.Solid_In_x['Fe3O4',t].fix( kwargs['Solid_x']['Fe3O4'] )
+        m.Solid_In_x['Al2O3',t].fix( kwargs['Solid_x']['Al2O3'] )
+    if 'Gas_F' in kwargs:
+        m.Gas_In_F[t].fix( kwargs['Gas_F'] ) 
+    if 'Gas_P' in kwargs:
+        m.Gas_In_P[t].fix( kwargs['Gas_P'] )
+    if 'Gas_T' in kwargs:
+        m.Gas_In_Tg[t].fix( kwargs['Gas_T'] )
+    if 'Gas_y' in kwargs:
+        m.Gas_In_y['CO2',t].fix( kwargs['Gas_y']['CO2'] )
+        m.Gas_In_y['H2O',t].fix( kwargs['Gas_y']['H2O'] )
+        m.Gas_In_y['CH4',t].fix( kwargs['Gas_y']['CH4'] )
 
 def setICs(fs,fs_ss):
     # getting the names from the variables would only be useful if I have a set
@@ -160,7 +178,6 @@ def setICs(fs,fs_ss):
 
             ic_param = getattr(fs.MB_fuel,var_name+'_0')
 
-            print(ic_param)
             for index in var_ss:
 
                 if index is None:
@@ -469,12 +486,53 @@ def print_summary_fuel_reactor(fs):
 #    plt.xlabel("Bed height [-]")
 #    plt.ylabel("Fraction of metal oxide converted [%]") 
 #                       
+
+def print_violated_constraints(flowsheet):
+
+    print('\nConstraints violated:')
+    for const in flowsheet.MB_fuel.component_objects(Constraint,active=True):
+        if not isinstance(const,SimpleConstraint):
+            for idx in const:
+                up_infeas = value(const[idx].upper) - value(const[idx].body)
+                lo_infeas = value(const[idx].body) - value(const[idx].lower)
+                if (value(const[idx].body) > value(const[idx].upper) + 1.0e-7) or \
+                        (value(const[idx].body) < value(const[idx].lower) - 1.0e-7):
+                    print(const.name,idx,value(const[idx].body))
+        else:
+            if (value(const.body) > value(const.upper) + 1.0e-7) or \
+                    (value(const.body) < value(const.lower) - 1.0e-7):
+                print(const.name)
+    print('---\n')
+
+    print('Variable bounds violated')
+    for var in flowsheet.MB_fuel.component_objects(Var,active=True):
+        # don't use IndexedComponent here, variables are always indexed components 
+        # could also do this by iterating over component_objects(SimpleVar)...?
+        if not isinstance(var,SimpleVar):
+            for idx in var:
+                if not (var[idx].lb is None):
+                    if (var[idx].value < var[idx].lb - 1.0e-7):
+                        pdb.set_trace()
+                        print(var.name,idx)
+                if not (var[idx].ub is None):
+                    if (var[idx].value > var[idx].ub + 1.0e-7):
+                        pdb.set_trace()
+                        print(var.name,idx)
+        else:
+            if var.has_lb():
+                if (var.value > var.ub + 1.0e-7):
+                    print(var.name)
+            if var.has_ub():
+                if (var.value < var.lb - 1.0e-7):
+                    print(var.name)
+    print('- - -\n')
        
 def main():
     """
     Make the flowsheet object and solve
     """
     ss_flowsheet = ss_sim.main()
+
     flowsheet = Flowsheet(name='MB_Model') 
 
     # fill in values of IC parameters from steady state solve
@@ -497,7 +555,12 @@ def main():
     #input_perturbation = { ('Solid_In_x',mb.t) : { ['Fe2O3'] : 0.25 },
     #                       ('Solid_In_x',mb.t) : { ['Al2O3'] : 0.75 } }
 
-    perturbInputs(flowsheet)
+    solid_x_ptb = {'Fe2O3':0.25, 'Fe3O4':0.01, 'Al2O3':0.74}
+    gas_y_ptb = {'CO2':0.03999, 'H2O':0.00001, 'CH4':0.96}
+    #perturbInputs(flowsheet,0,Solid_M=691.4,Solid_T=1283,Solid_x=solid_x_ptb,
+    #        Gas_F=150,Gas_T=350,Gas_y=gas_y_ptb)
+    for t in mb.t:
+        perturbInputs(flowsheet,t,Solid_T=691.4)
 
     # perturb states
 
@@ -519,6 +582,7 @@ def main():
     mb.eq_g5.deactivate()
     mb.eq_g2.deactivate()
     mb.Tg_GW.fix(0.0)
+    mb.Tw_GW.fix(0.0)
     mb.Tg_refractory.fix(0.0)
     mb.Tw_Wamb.fix()
     mb.Tw.fix()
@@ -533,6 +597,10 @@ def main():
     mb.Ra.fix()
     mb.Re.fix()
     ###
+
+    # other tentatively unused variables:
+    mb.mFe_mAl.fix(0.0)
+    mb.Solid_Out_M_Comp.fix()
     
 
     '''
@@ -555,56 +623,42 @@ def main():
                    'halt_on_ampl_error': 'yes'}
     flowsheet.write('fs.nl')
 
-    with open('dyn_fs.txt','w') as f:
-        flowsheet.display(ostream=f)
-
-    print('Constraints violated pre-solve:')
-    for const in flowsheet.MB_fuel.component_objects(Constraint,active=True):
-        if not isinstance(const,SimpleConstraint):
-            for idx in const:
-                if (value(const[idx].body) > value(const[idx].upper) + 1.0e-7) or \
-                        (value(const[idx].body) < value(const[idx].lower) - 1.0e-7):
-                    print(const.name,idx)
-        else:
-            if (value(const.body) > value(const.upper) + 1.0e-7) or \
-                    (value(const.body) < value(const.lower) - 1.0e-7):
-                print(const.name)
-    print('- - -\n')
-
-    print('Variable bounds violated pre-solve:')
-    for var in flowsheet.MB_fuel.component_objects(Var,active=True):
-        # don't use IndexedComponent here, variables are always indexed components 
-        # could also do this by iterating over component_objects(SimpleVar)...?
-        if not isinstance(var,SimpleVar):
-            for idx in var:
-                if not (var[idx].lb is None):
-                    if (var[idx].value < var[idx].lb - 1.0e-7):
-                        pdb.set_trace()
-                        print(var.name,idx)
-                if not (var[idx].ub is None):
-                    if (var[idx].value > var[idx].ub + 1.0e-7):
-                        pdb.set_trace()
-                        print(var.name,idx)
-        else:
-            if (var.value > var.ub + 1.0e-7) or \
-                    (var.value < var.lb - 1.0e-7):
-                print(var.name)
-    print('- - -\n')
-
     # initialized at steady state, works regardless:
     flowsheet.strip_bounds()
 
     for z in mb.z:
         for t in mb.t:
-            mb.Cg[z,'CH4',t].setlb(1e-6)
-
+            mb.Cg[z,'CH4',t].setlb(1e-8)
 
     # want a function to integrate the model one step from a specified time point
     # will call for all t
-    integrate(flowsheet,0)
+    for t in mb.t:
+        alg_update(flowsheet,t)
+        update_time_derivatives(flowsheet,t)
+
+    #sim = Simulator(mb, package='casadi')
+
+    #for t in mb.t:
+    #    if t == mb.t.last():
+    #        continue
+    #    print(t)
+    #    integrate(flowsheet,t)
+
+    #fs_0 = implicit_integrate(flowsheet)
+
+    #with open('fe_0.txt','w') as f:
+    #    fs_0.display(ostream=f)
+    with open('fe_1_init.txt','w') as f:
+        flowsheet.display(ostream=f)
+
+    #with open('dyn_fs_init.txt','w') as f:
+    #    flowsheet.display(ostream=f)
     
-    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-    #                        keepfiles=False)
+    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+                            keepfiles=False)
+
+
+    #print_violated_constraints(flowsheet)
 
     #with open('dyn_fs_sol.txt','w') as f:
     #    flowsheet.display(ostream=f)

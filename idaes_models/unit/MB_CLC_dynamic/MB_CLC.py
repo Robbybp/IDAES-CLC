@@ -1027,6 +1027,7 @@ class _MB(UnitModel):
 
         def rule_eq_p15(b,z,i,j,t):
             return (1 + ((b.k_comp[z,i,t]/b.k_comp[z,i,t])**0.5) \
+                    # ^ probably a typo..., should be different components
                         * ((b.MW[j]/b.MW[i])**0.25))**2 \
                         / (8*(1+(b.MW[j]/b.MW[i])))**0.5    
         self.A_bin = Expression(self.z, self.GasList, self.gcomp, self.t, 
@@ -1159,6 +1160,7 @@ class _MB(UnitModel):
         # ^ specifies dCgdt
         
         def rule_eq_b2(b, z, j, t): 
+            # shouldn't this be b.z.last()?
             if z == b.z.first():
                 return Constraint.Skip
             else:
@@ -1358,6 +1360,7 @@ class _MB(UnitModel):
         # ^ specifies Tg_ref. from gas,wall temps...
 
         def rule_eq_d6(b, z, t):
+            # shouldn't this be b.z.last()
             if z == b.z.first():
                 return Constraint.Skip #The BC for Ts is under '_make_bdry_conds' 
             else:
@@ -1588,6 +1591,8 @@ class _MB(UnitModel):
     #==========================================================================        
 
     def _make_init_conditions(self):
+        # some skipped constraints because initial conditions 
+        # should not be enforced at the inlets
 
         def rule_eq_h1(b,z,i):
             if z == b.z.first():
@@ -1597,7 +1602,8 @@ class _MB(UnitModel):
         self.eq_h1 = Constraint(self.z,self.GasList,rule=rule_eq_h1)
 
         def rule_eq_h2(b,z,j):
-            if z == b.z.first():
+            #if z == b.z.first():
+            if z == b.z.last():
                 return Constraint.Skip
             else:
                 return b.q[z,j,0] == b.q_0[z,j]
@@ -1611,7 +1617,8 @@ class _MB(UnitModel):
         self.eq_h3 = Constraint(self.z,rule=rule_eq_h3)
 
         def rule_eq_h4(b,z):
-            if z == b.z.first():
+            #if z == b.z.first():
+            if z == b.z.last():
                 return Constraint.Skip
             else:
                 return b.Ts[z,0] == b.Ts_0[z]
