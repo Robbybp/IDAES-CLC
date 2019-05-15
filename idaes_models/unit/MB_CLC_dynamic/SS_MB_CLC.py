@@ -576,6 +576,12 @@ class _MB(UnitModel):
         self.Gh_flux = Var(
                 self.z, domain=Reals, initialize=100,
                 doc='Gas phase enthalpy flux [kJ/(m2.s)]') 
+
+        # Solid phase thermal flux - added 5/14 to reflect model 
+        # corrections made by Chinedu
+        self.Sh_flux = Var(
+                self.z, domain=Reals, initialize=100,
+                doc='Solid phase enthalpy flux [kJ/(m2.s)]')
               
         # Dummy variables
 #        self.dummy = Var(
@@ -639,6 +645,7 @@ class _MB(UnitModel):
         self.dldz = DerivativeVar(self.l, wrt=self.z)
         
         self.dGh_fluxdz = DerivativeVar(self.Gh_flux, wrt=self.z)
+        self.dSh_fluxdz = DerivativeVar(self.Sh_flux, wrt=self.z)
 
     def _make_constraints_props(self):
         """ 
@@ -1023,9 +1030,14 @@ class _MB(UnitModel):
             if z == b.z.first():
                 return Constraint.Skip #The BC for Ts is under '_make_bdry_conds' 
             else:
+                #return 0 == b.rho_sol \
+                #            *b.cp_sol[z]*1e-3 \
+                #            *b.vs*b.dTsdz[z] \
+                #            + b.Tg_GS[z]*b.L \
+                #            + b.Ts_dHr[z]*b.L
                 return 0 == b.rho_sol \
                             *b.cp_sol[z]*1e-3 \
-                            *b.vs*b.dTsdz[z] \
+                            *b.vs*b.dSh_fluxdz[z] \
                             + b.Tg_GS[z]*b.L \
                             + b.Ts_dHr[z]*b.L
         self.eq_d6 = Constraint(self.z, rule=rule_eq_d6,
@@ -1057,6 +1069,11 @@ class _MB(UnitModel):
             #/(b.rhow*b.Cpw)
         self.eq_d10 = Constraint(self.z, rule=rule_eq_d10,
                                      doc = 'Heat transfer from wall to ambient')
+
+        def rule_eq_d11(b,z):
+            return b.Sh_flux[z] == 1e-3*b.qT[z]*b.cp_sol[z]*b.vs*b.Ts[z]
+        self.eq_d11 = Constraint(self.z, rule=rule_eq_d11,
+                                    doc = 'solid phase enthalpy flux')
                 
     #==========================================================================  
     def _pressure_balance(self):
