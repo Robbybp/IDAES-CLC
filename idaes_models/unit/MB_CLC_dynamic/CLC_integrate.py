@@ -353,6 +353,8 @@ def alg_update(fs,t):
 
         # Gh_flux:
         calculate_variable_from_constraint(m.Gh_flux[z,t],m.eq_d2[z,t])
+        # Sh_flux:
+        #calculate_variable_from_constraint(m.Sh_flux[z,t],m.eq_d11[z,t])
         # cp_sol:
         calculate_variable_from_constraint(m.cp_sol[z,t],m.eq_p4[z,t])
         # cv_vap:
@@ -368,7 +370,8 @@ def alg_update(fs,t):
             for j in m.SolidList:
                 calculate_variable_from_constraint(m.dS_fluxdz[z,j,t],m.dS_fluxdz_disc_eq[z,j,t])
             calculate_variable_from_constraint(m.dGh_fluxdz[z,t],m.dGh_fluxdz_disc_eq[z,t])
-            calculate_variable_from_constraint(m.dTsdz[z,t],m.dTsdz_disc_eq[z,t])
+            #calculate_variable_from_constraint(m.dSh_fluxdz[z,t],m.dSh_fluxdz_disc_eq[z,t])
+            #calculate_variable_from_constraint(m.dTsdz[z,t],m.dTsdz_disc_eq[z,t])
         
 
 

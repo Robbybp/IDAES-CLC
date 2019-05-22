@@ -15,7 +15,7 @@ from __future__ import print_function
 __author__ = "Chinedu Okoli and Anca Ostace"
 __version__ = "2.0.0"
 
-from pyomo.environ import value, Var, Constraint
+from pyomo.environ import value, Var, Constraint, Objective
 from pyomo.environ import ConcreteModel
 from pyomo.environ import Block
 from pyomo.core.base.sets import _SetProduct
@@ -110,8 +110,7 @@ class _Flowsheet(FlowsheetModel):
                 ncp = 3,
                 horizon = 0.01, # was 10, then 1, then 10^-2, then 10^-4, now back to 1...
                 nfe_t = 1,   #  "  "
-                ncp_t = 3)
-
+                ncp_t = 3) # was 3
 
         
 def setInputs(fs):    
@@ -495,14 +494,14 @@ def print_violated_constraints(flowsheet):
             for idx in const:
                 up_infeas = value(const[idx].upper) - value(const[idx].body)
                 lo_infeas = value(const[idx].body) - value(const[idx].lower)
-                if (value(const[idx].body) > value(const[idx].upper) + 1.0e-7) or \
-                        (value(const[idx].body) < value(const[idx].lower) - 1.0e-7):
+                if (value(const[idx].body) > value(const[idx].upper) + 1.0e-8) or \
+                        (value(const[idx].body) < value(const[idx].lower) - 1.0e-8):
                     print(const.name,idx,value(const[idx].body))
         else:
-            if (value(const.body) > value(const.upper) + 1.0e-7) or \
-                    (value(const.body) < value(const.lower) - 1.0e-7):
+            if (value(const.body) > value(const.upper) + 1.0e-8) or \
+                    (value(const.body) < value(const.lower) - 1.0e-8):
                 print(const.name)
-    print('---\n')
+    print('- - -\n')
 
     print('Variable bounds violated')
     for var in flowsheet.MB_fuel.component_objects(Var,active=True):
@@ -511,19 +510,19 @@ def print_violated_constraints(flowsheet):
         if not isinstance(var,SimpleVar):
             for idx in var:
                 if not (var[idx].lb is None):
-                    if (var[idx].value < var[idx].lb - 1.0e-7):
+                    if (var[idx].value < var[idx].lb - 1.0e-8):
                         pdb.set_trace()
                         print(var.name,idx)
                 if not (var[idx].ub is None):
-                    if (var[idx].value > var[idx].ub + 1.0e-7):
+                    if (var[idx].value > var[idx].ub + 1.0e-8):
                         pdb.set_trace()
                         print(var.name,idx)
         else:
             if var.has_lb():
-                if (var.value > var.ub + 1.0e-7):
+                if (var.value > var.ub + 1.0e-8):
                     print(var.name)
             if var.has_ub():
-                if (var.value < var.lb - 1.0e-7):
+                if (var.value < var.lb - 1.0e-8):
                     print(var.name)
     print('- - -\n')
        
@@ -543,26 +542,16 @@ def main():
 
     # Initialize at steady state
     initialize_ss(flowsheet,ss_flowsheet)
-
     mb = flowsheet.MB_fuel
 
     # Then perturb
-    # ^ that function should go in this file, probably
-    # input: dict mapping state names (strings) to new values
-
-    # this seems like as much work as doing the perturbation...
-    # maybe just make a self contained function
-    #input_perturbation = { ('Solid_In_x',mb.t) : { ['Fe2O3'] : 0.25 },
-    #                       ('Solid_In_x',mb.t) : { ['Al2O3'] : 0.75 } }
 
     solid_x_ptb = {'Fe2O3':0.25, 'Fe3O4':0.01, 'Al2O3':0.74}
     gas_y_ptb = {'CO2':0.03999, 'H2O':0.00001, 'CH4':0.96}
     #perturbInputs(flowsheet,0,Solid_M=691.4,Solid_T=1283,Solid_x=solid_x_ptb,
     #        Gas_F=150,Gas_T=350,Gas_y=gas_y_ptb)
-    for t in mb.t:
-        perturbInputs(flowsheet,t,Solid_T=691.4)
-
-    # perturb states
+    #for t in mb.t:
+    #    perturbInputs(flowsheet,t,Solid_M=591.4)
 
     # should put this in a dedicated ~intialize~ function
     # that also intelligently initializes the model after perturbation
@@ -616,11 +605,11 @@ def main():
     # Create a solver
     opt = SolverFactory('ipopt')
     opt.options = {'tol': 1e-8,
-                   'linear_solver' : 'ma27',
+    #               'linear_solver' : 'ma27',
                    'bound_push': 1e-8,
                    'max_cpu_time': 600,
-                   'print_level': 5,
-                   'halt_on_ampl_error': 'yes'}
+                   'print_level': 5}
+                   #'halt_on_ampl_error': 'yes'}
     flowsheet.write('fs.nl')
 
     # initialized at steady state, works regardless:
@@ -632,46 +621,30 @@ def main():
 
     # want a function to integrate the model one step from a specified time point
     # will call for all t
-    for t in mb.t:
-        alg_update(flowsheet,t)
-        update_time_derivatives(flowsheet,t)
-
-    #sim = Simulator(mb, package='casadi')
-
     #for t in mb.t:
-    #    if t == mb.t.last():
-    #        continue
-    #    print(t)
-    #    integrate(flowsheet,t)
+    #    alg_update(flowsheet,t)
+    #    update_time_derivatives(flowsheet,t)
 
-    #fs_0 = implicit_integrate(flowsheet)
+    print_violated_constraints(flowsheet)
 
-    #with open('fe_0.txt','w') as f:
-    #    fs_0.display(ostream=f)
-    with open('fe_1_init.txt','w') as f:
+    #mb.input_objective = Objective(expr=sum((mb.Solid_In_M[t] -601.4)**2 for t in mb.t))
+
+    with open('dyn_fs_init.txt','w') as f:
         flowsheet.display(ostream=f)
 
-    #with open('dyn_fs_init.txt','w') as f:
-    #    flowsheet.display(ostream=f)
-    
     results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
                             keepfiles=False)
 
+    print_violated_constraints(flowsheet)
 
-    #print_violated_constraints(flowsheet)
-
-    #with open('dyn_fs_sol.txt','w') as f:
-    #    flowsheet.display(ostream=f)
-
-
+    with open('dyn_fs_sol.txt','w') as f:
+        flowsheet.display(ostream=f)
     
     '''
-    
     print("\n")
     print("----------------------------------------------------------")
     print('Total simulation time: ', value(time.time() - ts), " s")
     print("----------------------------------------------------------")
-
     
     # Print some variables 
     print_summary_fuel_reactor(flowsheet) 
@@ -687,4 +660,4 @@ def main():
     return flowsheet
     
 if __name__ == "__main__":
-    flowsheet = main()         
+    main()

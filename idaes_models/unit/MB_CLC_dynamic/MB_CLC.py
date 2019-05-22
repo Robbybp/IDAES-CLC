@@ -806,6 +806,13 @@ class _MB(UnitModel):
                 self.t,
                 domain=Reals, initialize=100,
                 doc='Gas phase enthalpy flux [kJ/(m2.s)]') 
+
+        self.Sh_flux = Var(
+                self.z,
+                self.t,
+                domain=Reals,
+                initialize=100,
+                doc='Solid phase enthalpy flux [kJ/m2.s]')
               
         # Dummy variables
 #        self.dummy = Var(
@@ -899,8 +906,7 @@ class _MB(UnitModel):
 
         
         self.dGh_fluxdz = DerivativeVar(self.Gh_flux, wrt=self.z)
-        # ^ why does the gas phase balance use the time derivative of a flux, while
-        # the solid phase balance uses that of a temperature?
+        self.dSh_fluxdz = DerivativeVar(self.Sh_flux, wrt=self.z)
 
         self.dTsdt = DerivativeVar(self.Ts, wrt=self.t,initialize=0.0)
         self.dTgdt = DerivativeVar(self.Tg, wrt=self.t,initialize=0.0)
@@ -1026,7 +1032,7 @@ class _MB(UnitModel):
                                  doc = 'Gas comp. thermal conductivity [J/(m.K.s)]')
 
         def rule_eq_p15(b,z,i,j,t):
-            return (1 + ((b.k_comp[z,i,t]/b.k_comp[z,i,t])**0.5) \
+            return (1 + ((b.k_comp[z,j,t]/b.k_comp[z,i,t])**0.5) \
                     # ^ probably a typo..., should be different components
                         * ((b.MW[j]/b.MW[i])**0.25))**2 \
                         / (8*(1+(b.MW[j]/b.MW[i])))**0.5    
@@ -1365,9 +1371,7 @@ class _MB(UnitModel):
                 return Constraint.Skip #The BC for Ts is under '_make_bdry_conds' 
             else:
                 return (1-b.eps)*b.L*b.rho_sol*(b.cp_sol[z,t]*1e-3)*b.dTsdt[z,t] == \
-                            b.rho_sol \
-                            *b.cp_sol[z,t]*1e-3 \
-                            *b.vs[t]*b.dTsdz[z,t] \
+                            b.dSh_fluxdz[z,t] \
                             + b.Tg_GS[z,t]*b.L \
                             + b.Ts_dHr[z,t]*b.L
         self.eq_d6 = Constraint(self.z, self.t, rule=rule_eq_d6,
@@ -1402,6 +1406,11 @@ class _MB(UnitModel):
                                      doc = 'Heat transfer from wall to ambient')
         ########################
         # ^ these three constraints specify Tw_Wamb, Tw_GW, and Tw from Tg
+
+        def rule_eq_d11(b,z,t):
+            return b.Sh_flux[z,t] == 1e-3*b.qT[z,t]*b.cp_sol[z,t]*b.vs[t]*b.Ts[z,t]
+        self.eq_d11 = Constraint(self.z, self.t, rule=rule_eq_d11,
+                                    doc = 'Solid phase enthalpy flux')
                 
     #==========================================================================  
     def _pressure_balance(self):
@@ -1433,14 +1442,22 @@ class _MB(UnitModel):
                                     *(b.vg[z,t] + b.vs[t])*(b.vg[z,t] + b.vs[t]) 
                                     /(b.dp*b.eps**3)))*b.L
 
-                    ################################################################
-                    # make the assumption here that (vg+vs) > 0 to allow symbolic  #
-                    # differentiation with simpy in the                            #
-                    # calculate_variable_from_constraint() function.               #
-                    # This should be regarded as temporary, as I may want to       #
-                    # simulate later a case with negative velocities.              #
-                    #           DO NOT FORGET ABOUT THIS!!!                        #
-                    ################################################################
+                    #################################################################
+                    ## make the assumption here that (vg+vs) > 0 to allow symbolic ##
+                    ## differentiation with simpy in the                           ##
+                    ## calculate_variable_from_constraint() function.              ##
+                    ## This should be regarded as temporary, as I may want to      ##
+                    ## simulate later a case with negative velocities.             ##
+                    ##           DO NOT FORGET ABOUT THIS!!!                       ##
+                    #################################################################
+                                                    ##
+                                                    ##
+                                                    ##
+                                                    ##
+                                                    ##
+                                                    ##
+                                                    ##
+                                                    ##
 
                     #return -b.dPdz[z,t]*1e5 == ((150.0*b.mu_vap[z,t] 
                     #                *(1-b.eps)**2*(b.vg[z,t] + b.vs[t]) 
