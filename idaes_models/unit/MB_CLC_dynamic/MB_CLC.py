@@ -1331,17 +1331,17 @@ class _MB(UnitModel):
             if z == b.z.first():
                 return Constraint.Skip #The BC for Tg is under '_make_bdry_conds' 
             else:
-                return 1e-6*b.eps*b.L*b.rho_vap[z,t]*b.cp_gas[z,t]*b.dTgdt[z,t] == \
-                            - 1e-6*b.dGh_fluxdz[z,t] \
-                            - 1e-6*b.Tg_GS[z,t]*b.L - 1e-6*b.Tg_GW[z,t]*b.L \
-                            - 1e-6*b.Tg_refractory[z,t]*b.L
+                return b.eps*b.L*b.rho_vap[z,t]*b.cp_gas[z,t]*b.dTgdt[z,t] == \
+                            - b.dGh_fluxdz[z,t] \
+                            - b.Tg_GS[z,t]*b.L - b.Tg_GW[z,t]*b.L \
+                            - b.Tg_refractory[z,t]*b.L
         self.eq_d1 = Constraint(self.z, self.t, rule=rule_eq_d1,
                                 doc = 'Gas phase energy balance')
         # specifies dTgdt. 1e-6 is not a unit conversion...
         
         def rule_eq_d2(b, z, t):
-            return 1e-6*b.Gh_flux[z,t] \
-                   == 1e-6*b.rho_vap[z,t]*b.vg[z,t]*b.Tg[z,t]*b.cp_gas[z,t]
+            return b.Gh_flux[z,t] \
+                   == b.rho_vap[z,t]*b.vg[z,t]*b.Tg[z,t]*b.cp_gas[z,t]
         self.eq_d2 = Constraint(self.z, self.t, rule=rule_eq_d2,
                                 doc = 'Gas phase enthalpy flux') 
         # specifies Gh_flux from Tg (differential)

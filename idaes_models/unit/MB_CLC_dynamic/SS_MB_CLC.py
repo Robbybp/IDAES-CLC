@@ -998,15 +998,15 @@ class _MB(UnitModel):
             if z == b.z.first():
                 return Constraint.Skip #The BC for Tg is under '_make_bdry_conds' 
             else:
-                return 0 == - 1e-6*b.dGh_fluxdz[z] \
-                            - 1e-6*b.Tg_GS[z]*b.L - 1e-6*b.Tg_GW[z]*b.L \
-                            - 1e-6*b.Tg_refractory[z]*b.L
+                return 0 == - b.dGh_fluxdz[z] \
+                            - b.Tg_GS[z]*b.L - b.Tg_GW[z]*b.L \
+                            - b.Tg_refractory[z]*b.L
         self.eq_d1 = Constraint(self.z, rule=rule_eq_d1,
                                 doc = 'Gas phase energy balance')
         
         def rule_eq_d2(b, z):
-            return 1e-6*b.Gh_flux[z] \
-                   == 1e-6*b.rho_vap[z]*b.vg[z]*b.Tg[z]*b.cp_gas[z]
+            return b.Gh_flux[z] \
+                   == b.rho_vap[z]*b.vg[z]*b.Tg[z]*b.cp_gas[z]
         self.eq_d2 = Constraint(self.z, rule=rule_eq_d2,
                                 doc = 'Gas phase enthalpy flux') 
         
