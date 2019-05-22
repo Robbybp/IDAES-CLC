@@ -1035,9 +1035,7 @@ class _MB(UnitModel):
                 #            *b.vs*b.dTsdz[z] \
                 #            + b.Tg_GS[z]*b.L \
                 #            + b.Ts_dHr[z]*b.L
-                return 0 == b.rho_sol \
-                            *b.cp_sol[z]*1e-3 \
-                            *b.vs*b.dSh_fluxdz[z] \
+                return 0 == b.dSh_fluxdz[z] \
                             + b.Tg_GS[z]*b.L \
                             + b.Ts_dHr[z]*b.L
         self.eq_d6 = Constraint(self.z, rule=rule_eq_d6,
