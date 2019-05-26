@@ -108,7 +108,7 @@ class _Flowsheet(FlowsheetModel):
                 press_drop = 'Ergun',
                 fe_set = fe_set,
                 ncp = 3,
-                horizon = 0.01, # was 10, then 1, then 10^-2, then 10^-4, now back to 1...
+                horizon = 1, # was 10, then 1, then 10^-2, then 10^-4, now back to 1...
                 nfe_t = 1,   #  "  "
                 ncp_t = 3) # was 3
 
@@ -326,167 +326,7 @@ def print_summary_fuel_reactor(fs):
               "\nFe3O4: ", value(fs.MB_fuel.x[0,'Fe3O4',0]), 
               "\nAl2O3: ", value(fs.MB_fuel.x[0,'Al2O3',0])) 
     
-#
-#def results_plot_fuel_reactor(self):
-#    """
-#    Plot some key results.
-#    """
-#    
-#    import matplotlib.pyplot as plt    
-#
-#    # Total pressure profile
-#    P = []
-#    for z in self.MB_fuel.z:
-#        P.append(value(self.MB_fuel.P[z]))
-#    fig_P = plt.figure(1)
-#    plt.plot(self.MB_fuel.z, P)
-#    plt.grid()
-#    plt.xlabel("Bed height [-]")
-#    plt.ylabel("Total Pressure [bar]")       
-#
-#    # Temperature profile
-#    Tg = []
-#    Ts = []
-##    Tw = []
-#    for z in self.MB_fuel.z:
-#        Tg.append(value(self.MB_fuel.Tg[z] - 273.15))
-#        Ts.append(value(self.MB_fuel.Ts[z] - 273.15))
-##        Tw.append(value(self.MB_fuel.Tw[z]))
-#    fig_T = plt.figure(2)
-#    plt.plot(self.MB_fuel.z, Tg, label='Tg')
-#    plt.plot(self.MB_fuel.z, Ts, label='Ts')
-##    plt.plot(self.MB_fuel.z, Tw, label='Tw')
-#    plt.legend(loc=0,ncol=2)
-#    plt.grid()
-#    plt.xlabel("Bed height [-]")
-#    plt.ylabel("Temperature [C]") 
-#    
-#    # Superficial gas velocity and minimum fluidization velocity
-#    vg = []
-#    umf = []
-#    for z in self.MB_fuel.z:
-#        vg.append(value(self.MB_fuel.vg[z]))
-#        umf.append(value(self.MB_fuel.umf[z]))
-#    fig_vg = plt.figure(3)
-#    plt.plot(self.MB_fuel.z, vg, label='vg')
-#    plt.plot(self.MB_fuel.z, umf, label='umf')
-#    plt.legend(loc=0,ncol=2)
-#    plt.grid()
-#    plt.xlabel("Bed height [-]")
-#    plt.ylabel("Superficial gas velocity [m/s]")
-#    
-#   # Gas components molar flow rate
-#    for j in self.MB_fuel.GasList:
-#        F = []
-#        for z in self.MB_fuel.z:
-#            F.append(value(self.MB_fuel.F[z,j]))
-#        fig_F = plt.figure(4)
-#        plt.plot(self.MB_fuel.z, F, label=j)
-#    plt.legend(loc=0,ncol=len(self.MB_fuel.GasList))
-#    plt.grid()
-#    plt.xlabel("Bed height [-]")
-#    plt.ylabel("Gas component molar flow rate, F [mol/s]")  
-#    
-#    # Bulk gas phase total molar flow rate
-#    Ftotal = []
-#    for z in self.MB_fuel.z:
-#        Ftotal.append(value(self.MB_fuel.Ftotal[z]))
-#    fig_Ftotal = plt.figure(5)
-#    plt.plot(self.MB_fuel.z, Ftotal)
-#    plt.grid()
-#    plt.xlabel("Bed height [-]")
-#    plt.ylabel("Total molar gas flow rate [mol/s]")  
-#
-#    # Solid components mass flow rate
-#    for j in self.MB_fuel.SolidList:
-#        M = []
-#        for z in self.MB_fuel.z:
-#            M.append(value(self.MB_fuel.Solid_M[z,j]))
-#        fig_M = plt.figure(6)
-#        plt.plot(self.MB_fuel.z, M, label=j)
-#    plt.legend(loc=0,ncol=len(self.MB_fuel.SolidList))
-#    plt.grid()
-#    plt.xlabel("Bed height [-]")
-#    plt.ylabel("Solid components mass flow rate [kg/s]")
-#    
-#     # Bulk solid phase total molar flow rate
-#    Mtotal = []
-#    for z in self.MB_fuel.z:
-#        Mtotal.append(value(self.MB_fuel.Solid_M_total[z]))
-#    fig_Mtotal = plt.figure(7)
-#    plt.plot(self.MB_fuel.z, Mtotal)
-#    plt.grid()
-#    plt.xlabel("Bed height [-]")
-#    plt.ylabel("Solid total mass flow rate [kg/s]")        
-#    
-#    # Gas phase concentrations
-#    for j in self.MB_fuel.GasList:
-#        Cg = []
-#        for z in self.MB_fuel.z:
-#            Cg.append(value(self.MB_fuel.Cg[z,j]))
-#        fig_Cg = plt.figure(8)
-#        plt.plot(self.MB_fuel.z, Cg, label=j)
-#    plt.legend(loc=0,ncol=len(self.MB_fuel.GasList))
-#    plt.grid()
-#    plt.xlabel("Bed height [-]")
-#    plt.ylabel("Concentration [mol/m3]")       
-#    
-#    # Gas phase mole fractions
-#    for j in self.MB_fuel.GasList:
-#        y = []
-#        for z in self.MB_fuel.z:
-#            y.append(value(self.MB_fuel.y[z,j]))
-#        fig_y = plt.figure(9)
-#        plt.plot(self.MB_fuel.z, y, label=j)
-#    plt.legend(loc=0,ncol=len(self.MB_fuel.GasList))
-#    plt.grid()
-#    plt.xlabel("Bed height [-]")
-#    plt.ylabel("y [-]")  
-#    
-#    # Solid phase mass fractions
-#    for j in self.MB_fuel.SolidList:
-#        x = []
-#        for z in self.MB_fuel.z:
-#            x.append(value(self.MB_fuel.x[z,j]))
-#        fig_x = plt.figure(10)
-#        plt.plot(self.MB_fuel.z, x, label=j)
-#    plt.legend(loc=0,ncol=len(self.MB_fuel.SolidList))
-#    plt.grid()
-#    plt.xlabel("Bed height [-]")
-#    plt.ylabel("x [-]")  
-#
-#    # Total mass fraction
-#    xtot = []
-#    for z in self.MB_fuel.z:
-#        xtot.append(value(self.MB_fuel.xtot[z]))
-#    fig_xtot = plt.figure(11)
-#    plt.plot(self.MB_fuel.z, xtot)
-#    plt.grid()
-#    plt.xlabel("Bed height [-]")
-#    plt.ylabel("Total mass fraction [-]") 
-#    
-#    # # Gas mix density
-#    # rhog = []
-#    # for z in self.MB_fuel.z:
-#    #     rhog.append(value(self.MB_fuel.rho_vap[z]))
-#    # fig_rhog = plt.figure(23)
-#    # plt.plot(self.MB_fuel.z, rhog)
-#    # plt.grid()
-#    # plt.xlabel("Bed height [-]")
-#    # plt.ylabel("Gas mix density [kg/m3]") 
-#               
-#    # Fe conversion
-#    X_Fe = []
-#    for z in self.MB_fuel.z:
-#        X_Fe.append(value(self.MB_fuel.X[z])*100)
-#    fig_X_Fe = plt.figure(13)
-#    plt.plot(self.MB_fuel.z, X_Fe)
-#    plt.grid()
-#    plt.xlabel("Bed height [-]")
-#    plt.ylabel("Fraction of metal oxide converted [%]") 
-#                       
-
-def print_violated_constraints(flowsheet):
+def print_violated_constraints(flowsheet,tol=1.0e-8):
 
     print('\nConstraints violated:')
     for const in flowsheet.MB_fuel.component_objects(Constraint,active=True):
@@ -494,12 +334,12 @@ def print_violated_constraints(flowsheet):
             for idx in const:
                 up_infeas = value(const[idx].upper) - value(const[idx].body)
                 lo_infeas = value(const[idx].body) - value(const[idx].lower)
-                if (value(const[idx].body) > value(const[idx].upper) + 1.0e-8) or \
-                        (value(const[idx].body) < value(const[idx].lower) - 1.0e-8):
+                if (value(const[idx].body) > value(const[idx].upper) + tol) or \
+                        (value(const[idx].body) < value(const[idx].lower) - tol):
                     print(const.name,idx,value(const[idx].body))
         else:
-            if (value(const.body) > value(const.upper) + 1.0e-8) or \
-                    (value(const.body) < value(const.lower) - 1.0e-8):
+            if (value(const.body) > value(const.upper) + tol) or \
+                    (value(const.body) < value(const.lower) - tol):
                 print(const.name)
     print('- - -\n')
 
@@ -525,6 +365,21 @@ def print_violated_constraints(flowsheet):
                 if (var.value < var.lb - 1.0e-8):
                     print(var.name)
     print('- - -\n')
+
+def write_differential_equations(flowsheet,suffix=''):
+
+    m = flowsheet.MB_fuel
+
+    with open('dCgdt_eqn'+suffix+'.txt','w') as f:
+        m.eq_b1.pprint(ostream=f)
+    with open('dqdt_eqn'+suffix+'.txt','w') as f:
+        m.eq_b2.pprint(ostream=f)
+    with open('dTgdt_eqn'+suffix+'.txt','w') as f:
+        m.eq_d1.pprint(ostream=f)
+    with open('dTsdt_eqn'+suffix+'.txt','w') as f:
+        m.eq_d6.pprint(ostream=f)
+
+    print('Time-differential equations written to files')
        
 def main():
     """
@@ -544,14 +399,15 @@ def main():
     initialize_ss(flowsheet,ss_flowsheet)
     mb = flowsheet.MB_fuel
 
-    # Then perturb
+    write_differential_equations(flowsheet)
 
+    # Then perturb
     solid_x_ptb = {'Fe2O3':0.25, 'Fe3O4':0.01, 'Al2O3':0.74}
     gas_y_ptb = {'CO2':0.03999, 'H2O':0.00001, 'CH4':0.96}
     #perturbInputs(flowsheet,0,Solid_M=691.4,Solid_T=1283,Solid_x=solid_x_ptb,
     #        Gas_F=150,Gas_T=350,Gas_y=gas_y_ptb)
-    #for t in mb.t:
-    #    perturbInputs(flowsheet,t,Solid_M=591.4)
+    for t in mb.t:
+        perturbInputs(flowsheet,t,Solid_M=691.4)
 
     # should put this in a dedicated ~intialize~ function
     # that also intelligently initializes the model after perturbation
@@ -592,40 +448,34 @@ def main():
     mb.Solid_Out_M_Comp.fix()
     
 
-    '''
-    ts = time.time() 
-    # Initialize fuel reactor
-    flowsheet.MB_fuel._initialize(outlvl=1,
-                              optarg={"tol"            : 1e-8,
-                                      "max_cpu_time"   : 600,
-                                      "print_level"    : 5,
-                                      "halt_on_ampl_error": 'yes'})        
-    '''
-
     # Create a solver
+    tol = 1e-8
     opt = SolverFactory('ipopt')
-    opt.options = {'tol': 1e-8,
-    #               'linear_solver' : 'ma27',
+    opt.options = {'tol': tol,
+                   'linear_solver' : 'ma57',
                    'bound_push': 1e-8,
                    'max_cpu_time': 600,
                    'print_level': 5}
                    #'halt_on_ampl_error': 'yes'}
-    flowsheet.write('fs.nl')
+    flowsheet.write('fs_dyn.nl')
 
     # initialized at steady state, works regardless:
     flowsheet.strip_bounds()
 
-    for z in mb.z:
-        for t in mb.t:
-            mb.Cg[z,'CH4',t].setlb(1e-8)
+    #for z in mb.z:
+    #    for t in mb.t:
+    #        mb.Cg[z,'CH4',t].setlb(1e-8)
 
-    # want a function to integrate the model one step from a specified time point
-    # will call for all t
-    #for t in mb.t:
-    #    alg_update(flowsheet,t)
-    #    update_time_derivatives(flowsheet,t)
+    for t in mb.t:
+        alg_update(flowsheet,t)
+        update_time_derivatives(flowsheet,t)
 
-    print_violated_constraints(flowsheet)
+
+    #mb.dSh_fluxdz_disc_eq.display()
+    mb.eq_b1.display()
+    mb.dCgdt.pprint()
+
+    print_violated_constraints(flowsheet,tol)
 
     #mb.input_objective = Objective(expr=sum((mb.Solid_In_M[t] -601.4)**2 for t in mb.t))
 
@@ -635,7 +485,7 @@ def main():
     results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
                             keepfiles=False)
 
-    print_violated_constraints(flowsheet)
+    print_violated_constraints(flowsheet,tol)
 
     with open('dyn_fs_sol.txt','w') as f:
         flowsheet.display(ostream=f)
