@@ -176,7 +176,7 @@ def alg_update(fs,t):
                     prev = temp
                 else:
                     break
-            v_prev = (m.vg[prev,t].value+m.vs[t].value)
+            v_prev = (m.vg[prev,t].value+(1e-3*m.vs[t].value))
 
             # dPdz:
             calculate_variable_from_constraint(m.dPdz[z,t],m.dPdz_disc_eq[z,t])
@@ -184,11 +184,11 @@ def alg_update(fs,t):
             if verbose_vg: print('\t',z)
             if verbose_vg: print('\tvg pre-update:\t',m.vg[z,t].value)
             if verbose_vg: print('\tdPdz: ',m.dPdz[z,t].value)
-            a = 1.75*m.rho_vap[z,t].value*(1-m.eps.value)*m.L.value/\
+            a = 1.75/150*m.rho_vap[z,t].value*(1-m.eps.value)*m.L.value/\
                     (m.dp.value*m.eps.value**3)
-            b = 150*m.mu_vap[z,t].value*(1-m.eps.value)**2*m.L.value/\
+            b = (1e-3*m.mu_vap[z,t].value)*(1-m.eps.value)**2*m.L.value/\
                     (m.dp.value**2*m.eps.value**3)
-            c = 1e5*m.dPdz[z,t].value
+            c = 1e5*m.dPdz[z,t].value/150
 
             d = (b**2-4*a*c)
 
@@ -214,7 +214,7 @@ def alg_update(fs,t):
             else:
                 v = vp
 
-            m.vg[z,t].set_value(v-m.vs[t].value)
+            m.vg[z,t].set_value(v-(1e-3*m.vs[t].value))
             # if calculation fails, should try switching sign of v_g+v_s
             #calculate_variable_from_constraint(m.vg[z,t],m.eq_e2[z,t])#,linesearch=False)
             if verbose_vg: print('\tvg post-update:\t',m.vg[z,t].value)
@@ -373,8 +373,6 @@ def alg_update(fs,t):
             calculate_variable_from_constraint(m.dSh_fluxdz[z,t],m.dSh_fluxdz_disc_eq[z,t])
             #calculate_variable_from_constraint(m.dTsdz[z,t],m.dTsdz_disc_eq[z,t])
         
-
-
     # outlet and overall parameters, not dependent on z:
 
     # X_gas:

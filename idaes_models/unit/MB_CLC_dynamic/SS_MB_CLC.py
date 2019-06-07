@@ -486,8 +486,8 @@ class _MB(UnitModel):
                 self.z, domain=Reals, bounds=(0.0,2000.0), initialize=298.15,
                 doc='Gas phase temperature [K]')
         self.Ts = Var(
-                self.z, domain=Reals, bounds=(0.0,2000.0), initialize=298.15,
-                doc='Solid phase temperature [K]')           
+                self.z, domain=Reals, bounds=(0.0,2000.0), initialize=.29815,
+                doc='Solid phase temperature [kK]')           
         self.Tw = Var(
                 self.z, domain=Reals, bounds=(0.0,10000.0), initialize=298.15,
                 doc='Wall temperature [K]')
@@ -521,8 +521,8 @@ class _MB(UnitModel):
                 self.z, domain=Reals,bounds=(-0.001,1e3), initialize=1.00584,
                 doc='Minimum fluidization velocity [m/s]')
         self.vs = Var(
-                  domain=Reals, initialize=0.005,
-                  doc='Superficial solids velocity (downwards) [m/s]') # not negative       
+                  domain=Reals, initialize=5.000,
+                  doc='Superficial solids velocity (downwards) [mm/s]') # not negative       
         self.v_diff=Var(
                 self.z, domain=Reals, bounds=(0.0,1e5),
                 doc='Variable to store "umf-vg", used in optimization')                
@@ -597,16 +597,16 @@ class _MB(UnitModel):
         """ 
 #        self.H_comp_s = Var(self.z, self.comp, domain = Reals, initialize = 1.0, 
 #                        doc = 'Solid phase component Enthalpy at Ts(K) - J/(mol comp)')
-        self.DH_rxn_s = Var(self.z, domain = Reals, initialize = 1.0, 
-                        doc = 'Heat of rxn at system T, J/(mol reaction)')
+        self.DH_rxn_s = Var(self.z, domain = Reals, initialize = 0.001, 
+                        doc = 'Heat of rxn at system T, kJ/(mol reaction)')
         self.cp_sol = Var(self.z,domain = Reals, initialize = 1.0,
                         doc = 'Heat capacity of solid particles, J/kg.K')
         self.MW_vap = Var(self.z, domain=Reals, initialize = 0.03,
                           doc = 'mol wt. of gas - kg/mol')
         self.rho_vap = Var(self.z, domain=Reals, initialize = 1.0,
                         doc = 'gas mass density - kg/m3')
-        self.mu_vap = Var(self.z, domain=Reals, initialize = 1e-5,
-                        doc = 'dynamic viscosity of gas, - Pa s = kg/m/s')
+        self.mu_vap = Var(self.z, domain=Reals, initialize = 1e-2,
+                        doc = 'dynamic viscosity of gas, - mPa s = g/m/s')
         self.cp_gas = Var(self.z, domain=Reals, initialize = 1.0,
                         doc='Gas phase heat capacity [kJ/kg/K]') 
         self.cp_vap = Var(self.z, domain = Reals, initialize = 1.0,
@@ -624,7 +624,7 @@ class _MB(UnitModel):
         self.k = Var(self.z, self.rxn_idx, domain=Reals, initialize=1.0, 
                         doc = 'kinetic rate constant')
         self.r_gen = Var(self.z, self.rxn_idx, domain=Reals, initialize = 1.0, 
-                        doc = 'gen. rate expression, units= mol_rxn/gOC.s')          
+                        doc = 'gen. rate expression, units= mol_rxn/kgOC.s')          
         self.rg = Var(self.z, self.GasList, domain=Reals, initialize = 0.0,
                         doc = 'gcomp. total rate expression, units= mol/m^3.s')        
         self.rs = Var(self.z, self.SolidList, domain=Reals, initialize = 0.0,
@@ -641,7 +641,7 @@ class _MB(UnitModel):
         self.dPdz = DerivativeVar(self.P, wrt=self.z) 
         
 #        self.dTgdz = DerivativeVar(self.Tg, wrt=self.z)
-        self.dTsdz = DerivativeVar(self.Ts, wrt=self.z)        
+#        self.dTsdz = DerivativeVar(self.Ts, wrt=self.z)        
         self.dldz = DerivativeVar(self.l, wrt=self.z)
         
         self.dGh_fluxdz = DerivativeVar(self.Gh_flux, wrt=self.z)
@@ -654,11 +654,11 @@ class _MB(UnitModel):
         be moved back out while transitioning to the new framework.
         """
         def rule_eq_p1(b,z,i):
-            return 1e3*(b.cp_param[i,'a']*(b.Ts[z]/1000)
-                        + b.cp_param[i,'b']*((b.Ts[z]/1000)**2)/2
-                        + b.cp_param[i,'c']*((b.Ts[z]/1000)**3)/3
-                        + b.cp_param[i,'d']*((b.Ts[z]/1000)**4)/4
-                        - b.cp_param[i,'e']/(b.Ts[z]/1000) + b.cp_param[i,'f']
+            return 1e3*(b.cp_param[i,'a']*(1e3*b.Ts[z]/1000)
+                        + b.cp_param[i,'b']*((1e3*b.Ts[z]/1000)**2)/2
+                        + b.cp_param[i,'c']*((1e3*b.Ts[z]/1000)**3)/3
+                        + b.cp_param[i,'d']*((1e3*b.Ts[z]/1000)**4)/4
+                        - b.cp_param[i,'e']/(1e3*b.Ts[z]/1000) + b.cp_param[i,'f']
                         - b.cp_param[i,'h'])
         self.H_comp_s = Expression(self.z, self.comp, rule=rule_eq_p1,
                                    doc = 'Component enthalpy [J/mol]')      
@@ -667,17 +667,17 @@ class _MB(UnitModel):
             if z == b.z.first():
                 return Constraint.Skip
             else:
-                return b.DH_rxn_s[z] == sum(b.stoic[i]*(b.H_comp_s[z,i] 
+                return (1e3*b.DH_rxn_s[z]) == sum(b.stoic[i]*(b.H_comp_s[z,i] 
                                         + b.Hf_comp[i]) for i in b.comp)
         self.eq_p2 = Constraint(self.z, rule = rule_eq_p2,
                                 doc = 'Heat of reaction')     
         
         # Solid properties
         def rule_eq_p3(b,z,i):
-            return b.cp_param[i,'a'] + b.cp_param[i,'b']*(b.Ts[z]/1000) \
-                        + b.cp_param[i,'c']*(b.Ts[z]/1000)**2 \
-                        + b.cp_param[i,'d']*(b.Ts[z]/1000)**3 \
-                        + b.cp_param[i,'e']/((b.Ts[z]/1000)**2)
+            return b.cp_param[i,'a'] + b.cp_param[i,'b']*(1e3*b.Ts[z]/1000) \
+                        + b.cp_param[i,'c']*(1e3*b.Ts[z]/1000)**2 \
+                        + b.cp_param[i,'d']*(1e3*b.Ts[z]/1000)**3 \
+                        + b.cp_param[i,'e']/((1e3*b.Ts[z]/1000)**2)
         self.cp_comp_s = Expression(self.z, self.comp, rule=rule_eq_p3,
                                     doc = 'Solid comp. heat capacity [J/(mol.K)')
         
@@ -707,7 +707,7 @@ class _MB(UnitModel):
         
         # Viscosity of gas mix
         def rule_eq_p8(b,z):
-            return 1e6*b.mu_vap[z] == 1e6*sum(b.y[z,i]*b.mu_comp[z,i] \
+            return 1e6*(1e-3*b.mu_vap[z]) == 1e6*sum(b.y[z,i]*b.mu_comp[z,i] \
                                     /(sum(b.y[z,j]*(b.MW[j]/b.MW[i])**0.5 \
                                     for j in b.GasList)) for i in b.GasList)
         self.eq_p8 = Constraint(self.z, rule=rule_eq_p8,
@@ -758,7 +758,7 @@ class _MB(UnitModel):
                                 doc = 'Binary interaction param. btw gas species [-]')
             
         def rule_eq_p16(b,z):
-            return 1e6*self.k_vap[z] == 1e6*sum(b.y[z,i]*b.k_comp[z,i] \
+            return self.k_vap[z] == sum(b.y[z,i]*b.k_comp[z,i] \
                                     /(sum(b.y[z,j]*b.A_bin[z,i,j]**0.5 \
                                     for j in b.GasList)) for i in b.GasList)
         self.eq_p16 = Constraint(self.z, rule=rule_eq_p16,
@@ -769,7 +769,7 @@ class _MB(UnitModel):
             if z == b.z.first():
                 return Constraint.Skip
             else:
-                return b.k[z,i] == b.k0[i]*exp(-b.E[i]/(b.R*b.Ts[z]))
+                return b.k[z,i] == b.k0[i]*exp(-b.E[i]/(b.R*1e3*b.Ts[z]))
         self.eq_r1 = Constraint(self.z, self.rxn_idx, rule=rule_eq_r1, 
                                 doc = 'kinetic rate constant eqn') 
             
@@ -796,7 +796,7 @@ class _MB(UnitModel):
             if z == b.z.first():
                 return Constraint.Skip
             else:
-                return 1e6*b.X_term[z]**3 == 1e6*(1-b.X[z])**2   
+                return b.X_term[z]**3 == (1-b.X[z])**2   
         self.eq_r3 = Constraint(self.z, rule = rule_eq_r3)        
       
         
@@ -805,7 +805,7 @@ class _MB(UnitModel):
             if z == b.z.first():
                 return Constraint.Skip
             else:
-                return b.r_gen[z,i]*1e6== 1e6*b.scale*b.x[z,'Fe2O3']*(b.a_vol/b.MW['Fe2O3'])\
+                return (1e-3*b.r_gen[z,i])*1e6== 1e6*b.scale*b.x[z,'Fe2O3']*(b.a_vol/b.MW['Fe2O3'])\
                                     *3*b.b_rxn[i]*b.k[z,i]*(b.Cg[z,'CH4']**b.N_rxn[i])\
                                     *b.X_term[z]/(b.rhom*b.radg)/(-b.stoic['Fe2O3'])                    
         self.eq_r4 = Constraint(self.z, self.rxn_idx, rule=rule_eq_r4, 
@@ -816,7 +816,7 @@ class _MB(UnitModel):
             if z == b.z.first():
                 return Constraint.Skip
             else:
-                return b.rs[z,i] == b.rho_sol*b.MW[i]*b.stoic[i]*b.r_gen[z,1]
+                return b.rs[z,i] == b.rho_sol*b.MW[i]*b.stoic[i]*(1e-3*b.r_gen[z,1])
         self.eq_r5 = Constraint(self.z, self.SolidList, rule=rule_eq_r5, 
                                     doc = 'comp specific rate expression, \
                                     units are kgOC/m3/s')
@@ -825,7 +825,7 @@ class _MB(UnitModel):
             if z == b.z.first():
                 return Constraint.Skip
             else:
-                return b.rg[z,i] == -1e3*b.rho_sol*b.stoic[i]*b.r_gen[z,1]                               
+                return b.rg[z,i] == -1e3*b.rho_sol*b.stoic[i]*(1e-3*b.r_gen[z,1])
         self.eq_r6 = Constraint(self.z, self.GasList, rule=rule_eq_r6, 
                                     doc = 'comp specific rate expression for a rxn,\
                                     units are mol/m3/s')
@@ -963,7 +963,7 @@ class _MB(UnitModel):
         
         # Calculate the solid components loading
         def rule_eq_c13(b,z,j):
-            return b.q[z,j]*b.vs == b.S_flux[z,j]
+            return b.q[z,j]*(b.vs*1e-3) == b.S_flux[z,j]
         self.eq_c13 = Constraint(self.z, self.SolidList, rule=rule_eq_c13,
                                doc = 'Solid components loading')        
         
@@ -1012,7 +1012,7 @@ class _MB(UnitModel):
         
         def rule_eq_d3(b, z):
             return b.Tg_GS[z]*b.dp == b.tuning_param2 \
-                              *6*(1-b.eps)*b.hf[z]*(b.Tg[z]-b.Ts[z])
+                              *6*(1-b.eps)*b.hf[z]*(b.Tg[z]-1e3*b.Ts[z])
         self.eq_d3 = Constraint(self.z, rule=rule_eq_d3,
                                    doc = 'Gas-solid convective heat transfer flux')
         
@@ -1047,8 +1047,8 @@ class _MB(UnitModel):
             else:
                 return b.Ts_dHr[z] == b.tuning_param \
                                   *(1-b.eps)*b.rho_sol \
-                                  *(-b.DH_rxn_s[z]) \
-                                  *b.r_gen[z,1]
+                                  *(-1e3*b.DH_rxn_s[z]) \
+                                  *(1e-3*b.r_gen[z,1])
         self.eq_d7 = Constraint(self.z, rule=rule_eq_d7,
                                     doc = 'Heat of reaction flux')
         
@@ -1069,7 +1069,7 @@ class _MB(UnitModel):
                                      doc = 'Heat transfer from wall to ambient')
 
         def rule_eq_d11(b,z):
-            return b.Sh_flux[z] == 1e-3*b.qT[z]*b.cp_sol[z]*b.vs*b.Ts[z]
+            return b.Sh_flux[z] == 1e-3*b.qT[z]*b.cp_sol[z]*(1e-3*b.vs)*(1e3*b.Ts[z])
         self.eq_d11 = Constraint(self.z, rule=rule_eq_d11,
                                     doc = 'solid phase enthalpy flux')
                 
@@ -1095,11 +1095,11 @@ class _MB(UnitModel):
                 if z == b.z.first():
                     return b.vg[z] == b.vg_in     # Inlet velocity
                 else:
-                    return -b.dPdz[z]*1e5 == ((150.0*b.mu_vap[z] 
-                                    *(1-b.eps)**2*(b.vg[z] + b.vs) 
+                    return -b.dPdz[z]*1e5/150 == (((1e-3*b.mu_vap[z])
+                                    *(1-b.eps)**2*(b.vg[z] + (1e-3*b.vs)) 
                                     /(b.dp**2*b.eps**3)) 
-                                    + (1.75*b.rho_vap[z]*(1-b.eps) 
-                                    *abs(b.vg[z] + b.vs)*(b.vg[z] + b.vs) 
+                                    + 1/150*(1.75*b.rho_vap[z]*(1-b.eps) 
+                                    *abs(b.vg[z] + (1e-3*b.vs))*(b.vg[z] + (1e-3*b.vs)) 
                                     /(b.dp*b.eps**3)))*b.L
             elif b.press_drop == 'SimplifiedP': # Mondino et al. (2017)
                 if z == b.z.first():
@@ -1116,10 +1116,10 @@ class _MB(UnitModel):
         
         # Compute the minimum fluidized velocity 
         def rule_e3(b,z):
-            return (b.mu_vap[z]**2)*((1.75/(b.emf)**3)*(b.dp*b.umf[z] 
-                       *b.rho_vap[z]/b.mu_vap[z])**2 \
+            return ((1e-3*b.mu_vap[z])**2)*((1.75/(b.emf)**3)*(b.dp*b.umf[z] 
+                       *b.rho_vap[z]/(1e-3*b.mu_vap[z]))**2 \
                        + (150*(1-b.emf)/(b.emf)**3)*(b.dp \
-                       *b.umf[z]*b.rho_vap[z]/b.mu_vap[z])) == \
+                       *b.umf[z]*b.rho_vap[z]/(1e-3*b.mu_vap[z]))) == \
                        b.dp**3*b.rho_vap[z] \
                        *(b.rho_sol-b.rho_vap[z])*b.g
         self.eq_e3 = Constraint(self.z, rule=rule_e3,
@@ -1163,7 +1163,7 @@ class _MB(UnitModel):
                                        energy balance')
         
         # BC for solid phase energy balance
-        self.eq_f4 = Constraint(expr=self.Ts[1] == self.Solid_In_Ts,
+        self.eq_f4 = Constraint(expr=(1e3*self.Ts[1]) == self.Solid_In_Ts,
                                    doc = 'Boundary condition for solid phase \
                                        energy balance')
 
@@ -1175,7 +1175,7 @@ class _MB(UnitModel):
                         *(self.A_bed*self.rho_vap[0]) \
                         == self.Gas_In_F*self.MW_vap[0],
                         doc = 'Inlet gas velocity')  
-        self.eq_f6 = Constraint(expr=self.vs*(self.A_bed \
+        self.eq_f6 = Constraint(expr=(1e-3*self.vs)*(self.A_bed \
                                     *self.rho_sol) == self.Solid_In_M,
                                 doc = 'Inlet solid velocity')      
 
@@ -1189,7 +1189,7 @@ class _MB(UnitModel):
                                          == self.Solid_M_total[0],
                                          doc = 'Solid outlet total mass flow')    
         self.eq_f9 = Constraint(expr= self.Solid_Out_Ts 
-                                         == self.Ts[0],
+                                         == (1e3*self.Ts[0]),
                                          doc = 'Solid outlet temperature') 
         def rule_eq_f10(b,j):
             return b.Solid_Out_x[j] == b.x[0,j]
@@ -1203,14 +1203,14 @@ class _MB(UnitModel):
         """        
         # Particle Reynolds number   #*
         def rule_eq_g1(b, z):
-            return b.Rep[z]*b.mu_vap[z] == b.vg[z] \
+            return b.Rep[z]*(1e-3*b.mu_vap[z]) == b.vg[z] \
                                 *b.dp*b.rho_vap[z]
         self.eq_g1 = Constraint(self.z, rule=rule_eq_g1,
                                  doc = 'Particle Reynolds number')
         
         # Reynolds number
         def rule_eq_g2(b, z):
-            return b.Re[z]*b.mu_vap[z] == b.vg[z] \
+            return b.Re[z]*(1e-3*b.mu_vap[z]) == b.vg[z] \
                                 *b.Dr*b.rho_vap[z]
         self.eq_g2 = Constraint(self.z, rule=rule_eq_g2,
                                 doc = 'Bed Reynolds number')
@@ -1218,7 +1218,7 @@ class _MB(UnitModel):
         # Prandtl number - cp_gas [J/kg/K]
         def rule_eq_g3(b, z):
             return b.Pr[z] == (b.cp_gas[z]*1e3*
-                                       b.mu_vap[z]/
+                                       (1e-3*b.mu_vap[z])/
                                        b.k_vap[z])
         self.eq_g3 = Constraint(self.z, rule=rule_eq_g3,
                                 doc = 'Prandtl number of gas mixture in bed')
@@ -1335,7 +1335,7 @@ class _MB(UnitModel):
         for z in blk.z:
             blk.P[z].fix(value(blk.Gas_In_P))
             blk.Tg[z].fix(value(blk.Solid_In_Ts)) #Bcos Thermal mass solid >> gas
-            blk.Ts[z].fix(value(blk.Solid_In_Ts))    
+            blk.Ts[z].fix(1e-3*value(blk.Solid_In_Ts))    
             blk.Tw[z].fix(value(blk.Solid_In_Ts)) 
             for j in blk.GasList:
                 blk.y[z,j].fix(value(blk.Gas_In_y[j]))
@@ -1580,10 +1580,10 @@ class _MB(UnitModel):
         # Initialize transfer variables
         for z in blk.z:
             blk.Rep[z] = value(blk.vg[z])*value(blk.dp) \
-                        *value(blk.rho_vap[z])/value(blk.mu_vap[z])
+                        *value(blk.rho_vap[z])/(1e-3*value(blk.mu_vap[z]))
             blk.Re[z] = value(blk.vg[z])*value(blk.Dr)*value(blk.rho_vap[z]) \
-                        /value(blk.mu_vap[z])   
-            blk.Pr[z] = 1e3*value(blk.cp_gas[z])*value(blk.mu_vap[z]) \
+                        /(1e-3*value(blk.mu_vap[z]))   
+            blk.Pr[z] = 1e3*value(blk.cp_gas[z])*(1e-3*value(blk.mu_vap[z])) \
                         /value(blk.k_vap[z])
             blk.Nu[z] = 2.0 + 1.1*(abs(value(blk.Rep[z]))**0.6) \
                                    *(abs(value(blk.Pr[z]))**(1/3))

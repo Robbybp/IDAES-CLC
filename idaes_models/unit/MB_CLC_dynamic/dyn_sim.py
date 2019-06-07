@@ -108,7 +108,7 @@ class _Flowsheet(FlowsheetModel):
                 press_drop = 'Ergun',
                 fe_set = fe_set,
                 ncp = 3,
-                horizon = 1, # was 10, then 1, then 10^-2, then 10^-4, now back to 1...
+                horizon = 10, # was 10, then 1, then 10^-2, then 10^-4, now back to 1...
                 nfe_t = 1,   #  "  "
                 ncp_t = 3) # was 3
 
@@ -126,9 +126,9 @@ def setInputs(fs):
            
         # Solid phase inlet conditions
         fs.MB_fuel.Solid_In_M[t].fix(591.4) #479.011) # kg/s
-        fs.MB_fuel.Solid_In_Ts[t].fix(1183.15)      # K
-        fs.MB_fuel.Solid_In_x['Fe2O3',t].fix(0.45)
-        fs.MB_fuel.Solid_In_x['Fe3O4',t].fix(1e-9)
+        fs.MB_fuel.Solid_In_Ts[t].fix(1183.15)      # kK
+        fs.MB_fuel.Solid_In_x['Fe2O3',t].fix(0.44999)
+        fs.MB_fuel.Solid_In_x['Fe3O4',t].fix(1e-5)
         fs.MB_fuel.Solid_In_x['Al2O3',t].fix(0.55)
         
     # Bed characteristics
@@ -406,8 +406,8 @@ def main():
     gas_y_ptb = {'CO2':0.03999, 'H2O':0.00001, 'CH4':0.96}
     #perturbInputs(flowsheet,0,Solid_M=691.4,Solid_T=1283,Solid_x=solid_x_ptb,
     #        Gas_F=150,Gas_T=350,Gas_y=gas_y_ptb)
-    for t in mb.t:
-        perturbInputs(flowsheet,t,Solid_M=691.4)
+    #for t in mb.t:
+    #    perturbInputs(flowsheet,t,Solid_M=691.4)
 
     # should put this in a dedicated ~intialize~ function
     # that also intelligently initializes the model after perturbation
@@ -446,6 +446,9 @@ def main():
     # other tentatively unused variables:
     mb.mFe_mAl.fix(0.0)
     mb.Solid_Out_M_Comp.fix()
+
+    # choose how to calculate certain algebraic variables:
+    mb.eq_c5.deactivate()
     
 
     # Create a solver
@@ -455,8 +458,11 @@ def main():
                    'linear_solver' : 'ma57',
                    'bound_push': 1e-8,
                    'max_cpu_time': 600,
-                   'print_level': 5}
-                   #'halt_on_ampl_error': 'yes'}
+                   'print_level': 5,
+                   'output_file': 'ipopt_out.txt',
+                   'linear_system_scaling' : 'mc19',
+                   'linear_scaling_on_demand' : 'no',
+                   'halt_on_ampl_error': 'yes'}
     flowsheet.write('fs_dyn.nl')
 
     # initialized at steady state, works regardless:
@@ -466,14 +472,9 @@ def main():
     #    for t in mb.t:
     #        mb.Cg[z,'CH4',t].setlb(1e-8)
 
-    for t in mb.t:
-        alg_update(flowsheet,t)
-        update_time_derivatives(flowsheet,t)
-
-
-    #mb.dSh_fluxdz_disc_eq.display()
-    mb.eq_b1.display()
-    mb.dCgdt.pprint()
+    #for t in mb.t:
+    #    alg_update(flowsheet,t)
+    #    update_time_derivatives(flowsheet,t)
 
     print_violated_constraints(flowsheet,tol)
 
@@ -487,8 +488,14 @@ def main():
 
     print_violated_constraints(flowsheet,tol)
 
+    for t in mb.t:
+        alg_update(flowsheet,t)
+        update_time_derivatives(flowsheet,t)
+    print_violated_constraints(flowsheet,t)
+
     with open('dyn_fs_sol.txt','w') as f:
         flowsheet.display(ostream=f)
+
     
     '''
     print("\n")

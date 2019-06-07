@@ -85,8 +85,8 @@ def setInputs(fs):
     # Solid phase inlet conditions
     fs.MB_fuel.Solid_In_M.fix(591.4) #479.011) # kg/s
     fs.MB_fuel.Solid_In_Ts.fix(1183.15)      # K
-    fs.MB_fuel.Solid_In_x['Fe2O3'].fix(0.45)
-    fs.MB_fuel.Solid_In_x['Fe3O4'].fix(1e-9)
+    fs.MB_fuel.Solid_In_x['Fe2O3'].fix(0.44999)
+    fs.MB_fuel.Solid_In_x['Fe3O4'].fix(1e-5)
     fs.MB_fuel.Solid_In_x['Al2O3'].fix(0.55)
     
     # Bed characteristics
@@ -359,6 +359,16 @@ def main():
     
     results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
                             keepfiles=False)
+
+    #flowsheet.MB_fuel.Solid_In_M.fix(691.4)
+    #flowsheet.MB_fuel.Gas_In_y['CO2'].fix(0.03999)
+    #flowsheet.MB_fuel.Gas_In_y['H2O'].fix(0.00001)
+    #flowsheet.MB_fuel.Gas_In_y['CH4'].fix(0.96)
+
+
+
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
     
     
     print("\n")
@@ -368,10 +378,10 @@ def main():
 
     
     # Print some variables 
-    print_summary_fuel_reactor(flowsheet) 
+    #print_summary_fuel_reactor(flowsheet) 
 
     # Plot some variables 
-    results_plot_fuel_reactor(flowsheet) 
+    #results_plot_fuel_reactor(flowsheet) 
 
     with open('ss_flowsheet.txt','w') as f:
         flowsheet.display(ostream=f)
