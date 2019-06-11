@@ -427,7 +427,7 @@ def update_time_derivatives(fs,t):
 
 def ee_update(fs,t):
     # performs explicit euler update (starting at t)
-    # to the algebraic variables 
+    # to the differential variables 
 
     # assumes the values of the differential variables and their time derivatives are correct at t
 
