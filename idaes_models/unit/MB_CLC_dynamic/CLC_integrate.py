@@ -350,13 +350,12 @@ def alg_update(fs,t):
         calculate_variable_from_constraint(m.umf[z,t],m.eq_e3[z,t])
         # v_diff:
         calculate_variable_from_constraint(m.v_diff[z,t],m.eq_e4[z,t])
-
         # Gh_flux:
         calculate_variable_from_constraint(m.Gh_flux[z,t],m.eq_d2[z,t])
-        # Sh_flux:
-        calculate_variable_from_constraint(m.Sh_flux[z,t],m.eq_d11[z,t])
         # cp_sol:
         calculate_variable_from_constraint(m.cp_sol[z,t],m.eq_p4[z,t])
+        # Sh_flux:
+        calculate_variable_from_constraint(m.Sh_flux[z,t],m.eq_d11[z,t])
         # cv_vap:
         calculate_variable_from_constraint(m.cv_vap[z,t],m.eq_p12[z,t])
         # k_cpcv:
@@ -665,8 +664,8 @@ def integrate(fs,t):
     # this function will do both. integrate explicitly, and use to initialize an
     # implicit integration.
 
-    #void_alg_variables(fs,t) # or maybe have alg_update call void_alg_variables()
-                              # but don't want to do this every time because it cancels out propagation...
+    # void_alg_variables(fs,t) # or maybe have alg_update call void_alg_variables()
+                               # but don't want to do this every time because it cancels out propagation...
     alg_update(fs,t)
     update_time_derivatives(fs,t)
     ee_update(fs,t)

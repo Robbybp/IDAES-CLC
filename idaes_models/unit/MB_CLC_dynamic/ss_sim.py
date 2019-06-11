@@ -406,152 +406,152 @@ def main():
     dt_vg           = []
     dt_vs           = []
 
-    for z in mb.z.get_finite_elements():
-        if z != mb.z.first() and z != mb.z.last():
-
-            dt_Gflux_CO2.append( (mb.Cg[z,'CO2'].value-mb.Cg[prev,'CO2'].value)/\
-                    (mb.G_flux[z,'CO2'].value-mb.G_flux[prev,'CO2'].value) \
-                    *(z-prev)*mb.eps.value*mb.L.value /(z-prev))
-
-            dt_Gflux_H2O.append( (mb.Cg[z,'H2O'].value-mb.Cg[prev,'H2O'].value)/\
-                    (mb.G_flux[z,'H2O'].value-mb.G_flux[prev,'H2O'].value) \
-                    *(z-prev)*mb.eps.value*mb.L.value /(z-prev))
-
-            dt_Gflux_CH4.append( (mb.Cg[z,'CH4'].value-mb.Cg[prev,'CH4'].value)/\
-                    (mb.G_flux[z,'CH4'].value-mb.G_flux[prev,'CH4'].value) \
-                    *(z-prev)*mb.eps.value*mb.L.value /(z-prev))
-
-            dt_Ctrans_CO2.append( (mb.Cg[z,'CO2'].value-mb.Cg[prev,'CO2'].value)/\
-                    (mb.Ctrans[z,'CO2'].value)* \
-                    #-mv.Ctrans[prev,'CO2'].value)*\
-                    mb.eps.value/(1-mb.eps.value) /(z-prev))
-
-            dt_Ctrans_H2O.append( (mb.Cg[z,'H2O'].value-mb.Cg[prev,'H2O'].value)/\
-                    (mb.Ctrans[z,'H2O'].value)* \
-                    #-mv.Ctrans[prev,'H2O'].value)*\
-                    mb.eps.value/(1-mb.eps.value) /(z-prev))
-
-            dt_Ctrans_CH4.append( (mb.Cg[z,'CH4'].value-mb.Cg[prev,'CH4'].value)/\
-                    (mb.Ctrans[z,'CH4'].value)* \
-                    #-mv.Ctrans[prev,'CH4'].value)*\
-                    mb.eps.value/(1-mb.eps.value) /(z-prev))
-
-            dt_Sflux_Fe2O3.append( (mb.q[z,'Fe2O3'].value-mb.q[prev,'Fe2O3'].value)/\
-                    (mb.S_flux[z,'Fe2O3'].value-mb.S_flux[prev,'Fe2O3'].value)*\
-                    (z-prev)/(1-mb.eps.value)*mb.L.value /(z-prev))
-
-            dt_Sflux_Fe3O4.append( (mb.q[z,'Fe3O4'].value-mb.q[prev,'Fe3O4'].value)/\
-                    (mb.S_flux[z,'Fe3O4'].value-mb.S_flux[prev,'Fe3O4'].value)*\
-                    (z-prev)/(1-mb.eps.value)*mb.L.value /(z-prev))
-
-            dt_Sflux_Al2O3.append( (mb.q[z,'Al2O3'].value-mb.q[prev,'Al2O3'].value)/\
-                    (mb.S_flux[z,'Al2O3'].value-mb.S_flux[prev,'Al2O3'].value)*\
-                    (z-prev)/(1-mb.eps.value)*mb.L.value /(z-prev))
-
-            dt_qtrans_Fe2O3.append( (mb.q[z,'Fe2O3'].value-mb.q[prev,'Fe2O3'].value)/\
-                    (mb.qtrans[z,'Fe2O3'].value )/(z-prev)) 
-                    #-mb.qtrans[prev,'Fe2O3'].value) )
-
-            dt_qtrans_Fe3O4.append( (mb.q[z,'Fe3O4'].value-mb.q[prev,'Fe3O4'].value)/\
-                    (mb.qtrans[z,'Fe3O4'].value )/(z-prev)) 
-                    #-mb.qtrans[prev,'Fe3O4'].value) )
-
-            dt_qtrans_Al2O3.append( (mb.q[z,'Fe3O4'].value-mb.q[prev,'Fe3O4'].value)/\
-                    (mb.qtrans[z,'Fe3O4'].value )/(z-prev)) 
-                    #-mb.qtrans[prev,'Fe3O4'].value) )
-
-            dt_Ghflux.append( (mb.Tg[z].value-mb.Tg[prev].value)/\
-                (mb.Gh_flux[z].value-mb.Gh_flux[prev].value)* (z-prev)* mb.eps.value*\
-                mb.L.value* mb.rho_vap[z].value* mb.cp_gas[z].value /(z-prev)) 
-
-            dt_Ts.append( (z-prev)*(1-mb.eps.value)*mb.L.value/mb.vs.value /(z-prev))
-
-            dt_TgGS.append( (mb.Tg[z].value - mb.Tg[prev].value)/\
-                    mb.Tg_GS[z].value* mb.eps.value* mb.rho_vap[z].value* mb.cp_gas[z].value 
-                    /(z-prev))
-    
-            dt_TsGS.append( (mb.Ts[z].value - mb.Ts[prev].value)/\
-                    mb.Tg_GS[z].value* (1-mb.eps.value)* mb.rho_sol.value* mb.cp_sol[z].value*1e-3 
-                    /(z-prev))
-    
-            dt_vg.append( mb.L.value*(z-prev)/mb.vg[z].value /(z-prev))
-    
-            dt_vs.append( mb.L.value*(z-prev)/mb.vs.value /(z-prev))
-
-        prev = z
-
-    with open('dt.txt','w') as f:
-        f.write('dt_Gflux_CO2\t')
-        for t in dt_Gflux_CO2:
-            f.write('%1.3f'%t +'\t')
-
-        f.write('\ndt_Gflux_H2O\t')
-        for t in dt_Gflux_H2O:
-            f.write('%1.3f'%t +'\t')
-
-        f.write('\ndt_Gflux_CH4\t')    
-        for t in dt_Gflux_CH4:
-            f.write('%1.3f'%t +'\t')
-
-        f.write('\ndt_Sflux_Fe2O3\t') 
-        for t in dt_Sflux_Fe2O3:
-            f.write('%1.3f'%t +'\t')
-
-        f.write('\ndt_Sflux_Fe3O4\t')  
-        for t in dt_Sflux_Fe3O4:
-            f.write('%1.3f'%t +'\t')
-
-        f.write('\ndt_Sflux_Al2O3\t')  
-        for t in dt_Sflux_Al2O3:
-            f.write('%1.3f'%t +'\t')
-
-        f.write('\ndt_Ctrans_CO2\t')  
-        for t in dt_Ctrans_CO2:
-            f.write('%1.3f'%t +'\t')
-            
-        f.write('\ndt_Ctrans_H2O\t')   
-        for t in dt_Ctrans_H2O:
-            f.write('%1.3f'%t +'\t')
-
-        f.write('\ndt_Ctrans_CH4\t')   
-        for t in dt_Ctrans_CH4:
-            f.write('%1.3f'%t +'\t')
-
-        f.write('\ndt_qtrans_Fe2O3\t') 
-        for t in dt_qtrans_Fe2O3:
-            f.write('%1.3f'%t +'\t')
-
-        f.write('\ndt_qtrans_Fe3O4\t') 
-        for t in dt_qtrans_Fe3O4:
-            f.write('%1.3f'%t +'\t')
-
-        f.write('\ndt_qtrans_Al2O3\t') 
-        for t in dt_qtrans_Al2O3:
-            f.write('%1.3f'%t +'\t')
-
-        f.write('\ndt_Ghflux\t')      
-        for t in dt_Ghflux:
-            f.write('%1.3f'%t +'\t')
-
-        f.write('\ndt_Ts\t\t')           
-        for t in dt_Ts:
-            f.write('%1.3f'%t +'\t')
-
-        f.write('\ndt_TgGS\t\t')         
-        for t in dt_TgGS:
-            f.write('%1.3f'%t +'\t')
-
-        f.write('\ndt_TsGS\t\t')         
-        for t in dt_TsGS:
-            f.write('%1.3f'%t +'\t')
-
-        f.write('\ndt_vg\t\t')           
-        for t in dt_vg:
-            f.write('%1.3f'%t +'\t')
-
-        f.write('\ndt_vs\t\t')           
-        for t in dt_vs:
-            f.write('%1.3f'%t +'\t')
+#    for z in mb.z.get_finite_elements():
+#        if z != mb.z.first() and z != mb.z.last():
+#
+#            dt_Gflux_CO2.append( (mb.Cg[z,'CO2'].value-mb.Cg[prev,'CO2'].value)/\
+#                    (mb.G_flux[z,'CO2'].value-mb.G_flux[prev,'CO2'].value) \
+#                    *(z-prev)*mb.eps.value*mb.L.value /(z-prev))
+#
+#            dt_Gflux_H2O.append( (mb.Cg[z,'H2O'].value-mb.Cg[prev,'H2O'].value)/\
+#                    (mb.G_flux[z,'H2O'].value-mb.G_flux[prev,'H2O'].value) \
+#                    *(z-prev)*mb.eps.value*mb.L.value /(z-prev))
+#
+#            dt_Gflux_CH4.append( (mb.Cg[z,'CH4'].value-mb.Cg[prev,'CH4'].value)/\
+#                    (mb.G_flux[z,'CH4'].value-mb.G_flux[prev,'CH4'].value) \
+#                    *(z-prev)*mb.eps.value*mb.L.value /(z-prev))
+#
+#            dt_Ctrans_CO2.append( (mb.Cg[z,'CO2'].value-mb.Cg[prev,'CO2'].value)/\
+#                    (mb.Ctrans[z,'CO2'].value)* \
+#                    #-mv.Ctrans[prev,'CO2'].value)*\
+#                    mb.eps.value/(1-mb.eps.value) /(z-prev))
+#
+#            dt_Ctrans_H2O.append( (mb.Cg[z,'H2O'].value-mb.Cg[prev,'H2O'].value)/\
+#                    (mb.Ctrans[z,'H2O'].value)* \
+#                    #-mv.Ctrans[prev,'H2O'].value)*\
+#                    mb.eps.value/(1-mb.eps.value) /(z-prev))
+#
+#            dt_Ctrans_CH4.append( (mb.Cg[z,'CH4'].value-mb.Cg[prev,'CH4'].value)/\
+#                    (mb.Ctrans[z,'CH4'].value)* \
+#                    #-mv.Ctrans[prev,'CH4'].value)*\
+#                    mb.eps.value/(1-mb.eps.value) /(z-prev))
+#
+#            dt_Sflux_Fe2O3.append( (mb.q[z,'Fe2O3'].value-mb.q[prev,'Fe2O3'].value)/\
+#                    (mb.S_flux[z,'Fe2O3'].value-mb.S_flux[prev,'Fe2O3'].value)*\
+#                    (z-prev)/(1-mb.eps.value)*mb.L.value /(z-prev))
+#
+#            dt_Sflux_Fe3O4.append( (mb.q[z,'Fe3O4'].value-mb.q[prev,'Fe3O4'].value)/\
+#                    (mb.S_flux[z,'Fe3O4'].value-mb.S_flux[prev,'Fe3O4'].value)*\
+#                    (z-prev)/(1-mb.eps.value)*mb.L.value /(z-prev))
+#
+#            dt_Sflux_Al2O3.append( (mb.q[z,'Al2O3'].value-mb.q[prev,'Al2O3'].value)/\
+#                    (mb.S_flux[z,'Al2O3'].value-mb.S_flux[prev,'Al2O3'].value)*\
+#                    (z-prev)/(1-mb.eps.value)*mb.L.value /(z-prev))
+#
+#            dt_qtrans_Fe2O3.append( (mb.q[z,'Fe2O3'].value-mb.q[prev,'Fe2O3'].value)/\
+#                    (mb.qtrans[z,'Fe2O3'].value )/(z-prev)) 
+#                    #-mb.qtrans[prev,'Fe2O3'].value) )
+#
+#            dt_qtrans_Fe3O4.append( (mb.q[z,'Fe3O4'].value-mb.q[prev,'Fe3O4'].value)/\
+#                    (mb.qtrans[z,'Fe3O4'].value )/(z-prev)) 
+#                    #-mb.qtrans[prev,'Fe3O4'].value) )
+#
+#            dt_qtrans_Al2O3.append( (mb.q[z,'Fe3O4'].value-mb.q[prev,'Fe3O4'].value)/\
+#                    (mb.qtrans[z,'Fe3O4'].value )/(z-prev)) 
+#                    #-mb.qtrans[prev,'Fe3O4'].value) )
+#
+#            dt_Ghflux.append( (mb.Tg[z].value-mb.Tg[prev].value)/\
+#                (mb.Gh_flux[z].value-mb.Gh_flux[prev].value)* (z-prev)* mb.eps.value*\
+#                mb.L.value* mb.rho_vap[z].value* mb.cp_gas[z].value /(z-prev)) 
+#
+#            dt_Ts.append( (z-prev)*(1-mb.eps.value)*mb.L.value/mb.vs.value /(z-prev))
+#
+#            dt_TgGS.append( (mb.Tg[z].value - mb.Tg[prev].value)/\
+#                    mb.Tg_GS[z].value* mb.eps.value* mb.rho_vap[z].value* mb.cp_gas[z].value 
+#                    /(z-prev))
+#    
+#            dt_TsGS.append( (mb.Ts[z].value - mb.Ts[prev].value)/\
+#                    mb.Tg_GS[z].value* (1-mb.eps.value)* mb.rho_sol.value* mb.cp_sol[z].value*1e-3 
+#                    /(z-prev))
+#    
+#            dt_vg.append( mb.L.value*(z-prev)/mb.vg[z].value /(z-prev))
+#    
+#            dt_vs.append( mb.L.value*(z-prev)/mb.vs.value /(z-prev))
+#
+#        prev = z
+#
+#    with open('dt.txt','w') as f:
+#        f.write('dt_Gflux_CO2\t')
+#        for t in dt_Gflux_CO2:
+#            f.write('%1.3f'%t +'\t')
+#
+#        f.write('\ndt_Gflux_H2O\t')
+#        for t in dt_Gflux_H2O:
+#            f.write('%1.3f'%t +'\t')
+#
+#        f.write('\ndt_Gflux_CH4\t')    
+#        for t in dt_Gflux_CH4:
+#            f.write('%1.3f'%t +'\t')
+#
+#        f.write('\ndt_Sflux_Fe2O3\t') 
+#        for t in dt_Sflux_Fe2O3:
+#            f.write('%1.3f'%t +'\t')
+#
+#        f.write('\ndt_Sflux_Fe3O4\t')  
+#        for t in dt_Sflux_Fe3O4:
+#            f.write('%1.3f'%t +'\t')
+#
+#        f.write('\ndt_Sflux_Al2O3\t')  
+#        for t in dt_Sflux_Al2O3:
+#            f.write('%1.3f'%t +'\t')
+#
+#        f.write('\ndt_Ctrans_CO2\t')  
+#        for t in dt_Ctrans_CO2:
+#            f.write('%1.3f'%t +'\t')
+#            
+#        f.write('\ndt_Ctrans_H2O\t')   
+#        for t in dt_Ctrans_H2O:
+#            f.write('%1.3f'%t +'\t')
+#
+#        f.write('\ndt_Ctrans_CH4\t')   
+#        for t in dt_Ctrans_CH4:
+#            f.write('%1.3f'%t +'\t')
+#
+#        f.write('\ndt_qtrans_Fe2O3\t') 
+#        for t in dt_qtrans_Fe2O3:
+#            f.write('%1.3f'%t +'\t')
+#
+#        f.write('\ndt_qtrans_Fe3O4\t') 
+#        for t in dt_qtrans_Fe3O4:
+#            f.write('%1.3f'%t +'\t')
+#
+#        f.write('\ndt_qtrans_Al2O3\t') 
+#        for t in dt_qtrans_Al2O3:
+#            f.write('%1.3f'%t +'\t')
+#
+#        f.write('\ndt_Ghflux\t')      
+#        for t in dt_Ghflux:
+#            f.write('%1.3f'%t +'\t')
+#
+#        f.write('\ndt_Ts\t\t')           
+#        for t in dt_Ts:
+#            f.write('%1.3f'%t +'\t')
+#
+#        f.write('\ndt_TgGS\t\t')         
+#        for t in dt_TgGS:
+#            f.write('%1.3f'%t +'\t')
+#
+#        f.write('\ndt_TsGS\t\t')         
+#        for t in dt_TsGS:
+#            f.write('%1.3f'%t +'\t')
+#
+#        f.write('\ndt_vg\t\t')           
+#        for t in dt_vg:
+#            f.write('%1.3f'%t +'\t')
+#
+#        f.write('\ndt_vs\t\t')           
+#        for t in dt_vs:
+#            f.write('%1.3f'%t +'\t')
 
 
     # Store the flowsheet    

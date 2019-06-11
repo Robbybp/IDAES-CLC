@@ -233,6 +233,8 @@ class _MB(UnitModel):
                        doc = 'Activation energy, kJ/mol')
         self.N_rxn = Param(self.rxn_idx, default = 1.3,
                            doc = 'reaction order in gas species, (-)')
+        self.ep_sqrt = Param(initialize=1e-8,
+                doc = 'term to prevent evaluation of square root of negative')
         self.b_rxn = Param(self.rxn_idx, default = 12,
                            doc = 'reaction stoich coeff, (-)')     
         # Available volume for reaction - from EPAT report (1-ep)'
@@ -806,7 +808,7 @@ class _MB(UnitModel):
                 return Constraint.Skip
             else:
                 return (1e-3*b.r_gen[z,i])*1e6== 1e6*b.scale*b.x[z,'Fe2O3']*(b.a_vol/b.MW['Fe2O3'])\
-                                    *3*b.b_rxn[i]*b.k[z,i]*(b.Cg[z,'CH4']**b.N_rxn[i])\
+                                    *3*b.b_rxn[i]*b.k[z,i]*((b.Cg[z,'CH4']+b.ep_sqrt)**b.N_rxn[i])\
                                     *b.X_term[z]/(b.rhom*b.radg)/(-b.stoic['Fe2O3'])                    
         self.eq_r4 = Constraint(self.z, self.rxn_idx, rule=rule_eq_r4, 
                         doc = 'general rate expression (mole extent basis), \

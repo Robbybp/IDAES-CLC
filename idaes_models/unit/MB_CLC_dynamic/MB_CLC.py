@@ -92,7 +92,8 @@ class _MB(UnitModel):
 
         """     
         
-        self.dae_method = kwargs.pop("dae_method","OCLR")
+        self.z_dae_method = kwargs.pop("z_dae_method","OCLR")
+        self.t_dae_method = kwargs.pop('t_dae_method','OCLR')
 
         # why does this create its own fe set instead of
         # using TransformationFactory?
@@ -288,6 +289,9 @@ class _MB(UnitModel):
                            doc = 'reaction order in gas species, (-)')
         # ^ how is this determined/why is it significant ?
         # A: experimentally, from Abad et al, I assume
+        self.ep_sqrt = Param(initialize=1e-8, 
+                doc = 'term to prevent evaluation of negative square root')
+
         self.b_rxn = Param(self.rxn_idx, default = 12,
                            doc = 'reaction stoich coeff, (-)')     
         # Coefficient of Fe2O3, significant because this is the 'reference component'
@@ -385,6 +389,8 @@ class _MB(UnitModel):
         
         self.tuning_param = Param(default=1, mutable=True)
         self.tuning_param2 = Param(default=1, mutable=True)
+
+        self.cont_param = Param(default=1, mutable=True)
 
 # these are in a separate function from property parameters because... ?
 # they have nothing to do with the components of the model?
@@ -1094,7 +1100,7 @@ class _MB(UnitModel):
                 return Constraint.Skip
             else:
                 return (1e-3*b.r_gen[z,i,t])*1e6== 1e6*b.scale*b.x[z,'Fe2O3',t]*(b.a_vol/b.MW['Fe2O3'])\
-                                    *3*b.b_rxn[i]*b.k[z,i,t]*(b.Cg[z,'CH4',t]**b.N_rxn[i])\
+                                    *3*b.b_rxn[i]*b.k[z,i,t]*((b.Cg[z,'CH4',t]+b.ep_sqrt)**b.N_rxn[i])\
                                     *b.X_term[z,t]/(b.rhom*b.radg)/(-b.stoic['Fe2O3'])  
         self.eq_r4 = Constraint(self.z, self.rxn_idx, self.t, rule=rule_eq_r4, 
                         doc = 'general rate expression (mole extent basis), \
@@ -1159,7 +1165,7 @@ class _MB(UnitModel):
             if z == b.z.first():
                 return Constraint.Skip
             else:
-                return b.eps*b.L*b.dCgdt[z,j,t] \
+                return b.cont_param*b.eps*b.L*b.dCgdt[z,j,t] \
                             == -b.dG_fluxdz[z,j,t] - \
                             (1-b.eps)*b.Ctrans[z,j,t]*b.L 
         self.eq_b1 = Constraint(self.z, self.GasList, self.t, rule=rule_eq_b1,
@@ -1170,7 +1176,7 @@ class _MB(UnitModel):
             if z == b.z.first():
                 return Constraint.Skip
             else:
-                return (1-b.eps)*b.L*b.dqdt[z,j,t] \
+                return b.cont_param*(1-b.eps)*b.L*b.dqdt[z,j,t] \
                         == b.dS_fluxdz[z,j,t] + (1-b.eps)*b.qtrans[z,j,t]*b.L 
         self.eq_b2 = Constraint(self.z, self.SolidList, self.t, rule=rule_eq_b2,
                                  doc = 'Solid component dynamic mass balance')
@@ -1340,7 +1346,7 @@ class _MB(UnitModel):
             if z == b.z.first():
                 return Constraint.Skip #The BC for Tg is under '_make_bdry_conds' 
             else:
-                return b.eps*b.L*b.rho_vap[z,t]*b.cp_gas[z,t]*b.dTgdt[z,t] == \
+                return b.cont_param*b.eps*b.L*b.rho_vap[z,t]*b.cp_gas[z,t]*b.dTgdt[z,t] == \
                             - b.dGh_fluxdz[z,t] \
                             - b.Tg_GS[z,t]*b.L - b.Tg_GW[z,t]*b.L \
                             - b.Tg_refractory[z,t]*b.L
@@ -1379,7 +1385,7 @@ class _MB(UnitModel):
             if z == b.z.first():
                 return Constraint.Skip #The BC for Ts is under '_make_bdry_conds' 
             else:
-                return (1-b.eps)*b.L*b.rho_sol*(b.cp_sol[z,t]*1e-3)*b.dTsdt[z,t] == \
+                return b.cont_param*(1-b.eps)*b.L*b.rho_sol*(b.cp_sol[z,t]*1e-3)*b.dTsdt[z,t] == \
                             b.dSh_fluxdz[z,t] \
                             + b.Tg_GS[z,t]*b.L \
                             + b.Ts_dHr[z,t]*b.L
@@ -1788,20 +1794,20 @@ class _MB(UnitModel):
         Apply DAE transformation to domain.
         """
         print('applying z-discretization')
-        if self.dae_method == "OCLR":
+        if self.z_dae_method == "OCLR":
             discretizer = TransformationFactory('dae.collocation')
             discretizer.apply_to(self, nfe=self.nfe, ncp=self.ncp,
                                  wrt=self.z, scheme='LAGRANGE-RADAU')          
-        elif self.dae_method == "BFD1":
+        elif self.z_dae_method == "BFD1":
             discretizer = TransformationFactory('dae.finite_difference')
             discretizer.apply_to(self, nfe=self.nfe, wrt=self.z,
                                  scheme='BACKWARD')
-        elif self.dae_method == "OCLL":
+        elif self.z_dae_method == "OCLL":
             discretizer = TransformationFactory('dae.collocation')
             discretizer.apply_to(self, nfe=self.nfe, ncp=self.ncp,
                                  wrt=self.z, scheme='LAGRANGE-LEGENDRE')
         else:
-            raise Exception('DAE method type not recognised.')         
+            raise Exception('z DAE method type not recognised.')         
         print('nfe (z):\t',self.nfe)
         print('ncp (z):\t',self.ncp)
 
@@ -1812,16 +1818,30 @@ class _MB(UnitModel):
         # ... needs to be tested right now? ...
 
     def _t_dae_transform(self):
-        t_discretizer = TransformationFactory('dae.collocation')
-        print('applying t-discretization')
-        print('nfe (t):\t',self.nfe_t)
-        print('ncp (t):\t',self.ncp_t)
-        t_discretizer.apply_to(self,
-                nfe = self.nfe_t,
-                ncp = self.ncp_t, 
-                wrt = self.t,
-                scheme = 'LAGRANGE-RADAU' )
-        print('applied discretization')
+        if self.t_dae_method == "OCLR":
+            t_discretizer = TransformationFactory('dae.collocation')
+            t_discretizer.apply_to(self, nfe=self.nfe_t, ncp=self.ncp_t,
+                                 wrt=self.t, scheme='LAGRANGE-RADAU')          
+        elif self.t_dae_method == "BFD1":
+            t_discretizer = TransformationFactory('dae.finite_difference')
+            t_discretizer.apply_to(self, nfe=self.nfe_t, wrt=self.t,
+                                 scheme='BACKWARD')
+        elif self.t_dae_method == "OCLL":
+            t_discretizer = TransformationFactory('dae.collocation')
+            t_discretizer.apply_to(self, nfe=self.nfe_t, ncp=self.ncp_t,
+                                 wrt=self.t, scheme='LAGRANGE-LEGENDRE')
+        else:
+            raise Exception('t DAE method type not recognised.')
+        #t_discretizer = TransformationFactory('dae.collocation')
+        #print('applying t-discretization')
+        #print('nfe (t):\t',self.nfe_t)
+        #print('ncp (t):\t',self.ncp_t)
+        #t_discretizer.apply_to(self,
+        #        nfe = self.nfe_t,
+        #        ncp = self.ncp_t, 
+        #        wrt = self.t,
+        #        scheme = 'LAGRANGE-RADAU' )
+        #print('applied discretization')
 
         
             
@@ -1852,7 +1872,7 @@ class _MB(UnitModel):
             for j in blk.GasList:
                 blk.y[z,j].fix(value(blk.Gas_In_y[j]))
             for j in blk.SolidList:
-                blk.x[z,j].fix(value(blk.Solid_In_x[j]))
+                blt.x[z,j].fix(value(blk.Solid_In_x[j]))
 
         blk.Solid_Out_M.fix(value(blk.Solid_In_M))
         blk.Gas_Out_P.fix(value(blk.Gas_In_P))
