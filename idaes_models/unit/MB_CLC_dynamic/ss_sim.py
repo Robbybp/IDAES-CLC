@@ -63,6 +63,7 @@ class _Flowsheet(FlowsheetModel):
                     (not used if fe_set specified)
         ncp = number of collocation points (OCLR or OCLL only, default = 3)
         """           
+
         # Create unit model for fuel reactor
         self.MB_fuel = MB_CLC_fuel.MB(
                 parent=self,
@@ -84,6 +85,7 @@ def setInputs(fs):
        
     # Solid phase inlet conditions
     fs.MB_fuel.Solid_In_M.fix(591.4) #479.011) # kg/s
+    #fs.MB_fuel.Solid_In_M.fix(691.4) #479.011) # kg/s
     fs.MB_fuel.Solid_In_Ts.fix(1183.15)      # K
     fs.MB_fuel.Solid_In_x['Fe2O3'].fix(0.44999)
     fs.MB_fuel.Solid_In_x['Fe3O4'].fix(1e-5)

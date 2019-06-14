@@ -35,7 +35,8 @@ import casadi
 from idaes_models.core import FlowsheetModel, ProcBlock
 import MB_CLC as MB_CLC_fuel
 import ss_sim
-from CLC_integrate import alg_update, integrate, update_time_derivatives, implicit_integrate
+from CLC_integrate import alg_update, integrate, update_time_derivatives, implicit_integrate, clc_integrate
+from utils import load_fe
 
 import pdb
 
@@ -105,13 +106,13 @@ class _Flowsheet(FlowsheetModel):
         self.MB_fuel = MB_CLC_fuel.MB(
                 parent=self,
                 z_dae_method = 'OCLR',
-                #t_dae_method = 'OCLR',
-                t_dae_method = 'BFD1',
+                t_dae_method = 'OCLR',
+                #t_dae_method = 'BFD1',
                 press_drop = 'Ergun',
                 fe_set = fe_set,
                 ncp = 3,
-                horizon = 3, # was 10, then 1, then 10^-2, then 10^-4, now back to 1...
-                nfe_t = 1,   #  "  "
+                horizon = 60, # was 10, then 1, then 10^-2, then 10^-4, now back to 1...
+                nfe_t = 12,   #  "  "
                 ncp_t = 1) # was 3
 
     
@@ -168,9 +169,11 @@ def setICs(fs,fs_ss):
     diff_vars_t.append('Tg')
     diff_vars_t.append('Ts')
 
+
     for var_ss in fs_ss.MB_fuel.component_objects(Var,active=True):
         var_name = var_ss.getname()
         if var_name in diff_vars_t:
+            print(var_name)
 
             if type(var_ss.index_set()) is _SetProduct:
                 ss_index_sets = var_ss.index_set().set_tuple
@@ -250,8 +253,6 @@ def initialize_ss(fs,fs_ss):
                 continue
 
 #def alg_update(fs,t):
-
-
 
         
 def print_summary_fuel_reactor(fs):
@@ -401,7 +402,7 @@ def main():
     initialize_ss(flowsheet,ss_flowsheet)
     mb = flowsheet.MB_fuel
 
-    write_differential_equations(flowsheet)
+    #write_differential_equations(flowsheet)
 
     # Then perturb
     solid_x_ptb = {'Fe2O3':0.25, 'Fe3O4':0.01, 'Al2O3':0.74}
@@ -451,7 +452,9 @@ def main():
 
     # choose how to calculate certain algebraic variables:
     mb.eq_c5.deactivate()
-    
+
+    with open('dyn_fs_init.txt','w') as f:
+        flowsheet.display(ostream=f)
 
     # Create a solver
     tol = 1e-8
@@ -462,7 +465,7 @@ def main():
                    'max_cpu_time': 600,
                    'print_level': 5,
                    'output_file': 'ipopt_out.txt',
-                   'linear_system_scaling' : 'mc19',
+                   'linear_system_scaling': 'mc19',
                    'linear_scaling_on_demand' : 'no',
                    'halt_on_ampl_error': 'yes'}
     flowsheet.write('fs_dyn.nl')
@@ -470,290 +473,296 @@ def main():
     # initialized at steady state, works regardless:
     flowsheet.strip_bounds()
 
+    fs_list = clc_integrate(mb)
+    for t in fs_list:
+        load_fe(fs_list[t], flowsheet, t)
+    
+
     #for z in mb.z:
     #    for t in mb.t:
     #        mb.Cg[z,'CH4',t].setlb(1e-8)
 
-    for t in mb.t:
-        alg_update(flowsheet,t)
-        update_time_derivatives(flowsheet,t)
+    #for t in mb.t:
+    #    alg_update(flowsheet,t)
+    #    update_time_derivatives(flowsheet,t)
+
+    with open('dyn_fs_init.txt','w') as f:
+        flowsheet.display(ostream=f)
 
     print_violated_constraints(flowsheet,tol)
 
     #mb.input_objective = Objective(expr=sum((mb.Solid_In_M[t] -601.4)**2 for t in mb.t))
 
-    with open('dyn_fs_init.txt','w') as f:
-        flowsheet.display(ostream=f)
 
-    mb.cont_param.set_value(0)
-    mb.dCgdt_disc_eq.deactivate()
-    for index in mb.dCgdt: mb.dCgdt[index].fix(0)
-    mb.dqdt_disc_eq.deactivate()
-    for index in mb.dqdt: mb.dqdt[index].fix(0)
-    mb.dTsdt_disc_eq.deactivate()
-    for index in mb.dTsdt: mb.dTsdt[index].fix(0)
-    mb.dTgdt_disc_eq.deactivate()
-    for index in mb.dTgdt: mb.dTgdt[index].fix(0)
-    mb.eq_h1.deactivate()
-    mb.eq_h2.deactivate()
-    mb.eq_h3.deactivate()
-    mb.eq_h4.deactivate()
-    flowsheet.write('fs_dyn.nl')
+    #mb.cont_param.set_value(0)
+    #mb.dCgdt_disc_eq.deactivate()
+    #for index in mb.dCgdt: mb.dCgdt[index].fix(0)
+    #mb.dqdt_disc_eq.deactivate()
+    #for index in mb.dqdt: mb.dqdt[index].fix(0)
+    #mb.dTsdt_disc_eq.deactivate()
+    #for index in mb.dTsdt: mb.dTsdt[index].fix(0)
+    #mb.dTgdt_disc_eq.deactivate()
+    #for index in mb.dTgdt: mb.dTgdt[index].fix(0)
+    #mb.eq_h1.deactivate()
+    #mb.eq_h2.deactivate()
+    #mb.eq_h3.deactivate()
+    #mb.eq_h4.deactivate()
+    #flowsheet.write('fs_dyn.nl')
 
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    mb.dCgdt_disc_eq.activate()
-    for index in mb.dCgdt: mb.dCgdt[index].unfix()
-    mb.dqdt_disc_eq.activate()
-    for index in mb.dqdt: mb.dqdt[index].unfix()
-    mb.dTsdt_disc_eq.activate()
-    for index in mb.dTsdt: mb.dTsdt[index].unfix()
-    mb.dTgdt_disc_eq.activate()
-    for index in mb.dTsdt: mb.dTgdt[index].unfix()
-    mb.eq_h1.activate()
-    mb.eq_h2.activate()
-    mb.eq_h3.activate()
-    mb.eq_h4.activate()
+    #mb.dCgdt_disc_eq.activate()
+    #for index in mb.dCgdt: mb.dCgdt[index].unfix()
+    #mb.dqdt_disc_eq.activate()
+    #for index in mb.dqdt: mb.dqdt[index].unfix()
+    #mb.dTsdt_disc_eq.activate()
+    #for index in mb.dTsdt: mb.dTsdt[index].unfix()
+    #mb.dTgdt_disc_eq.activate()
+    #for index in mb.dTsdt: mb.dTgdt[index].unfix()
+    #mb.eq_h1.activate()
+    #mb.eq_h2.activate()
+    #mb.eq_h3.activate()
+    #mb.eq_h4.activate()
 
-    print_violated_constraints(flowsheet,t)
+    #print_violated_constraints(flowsheet,t)
 
-    print('\n-----------------')
-    print('#\epsilon = 1e-5#')
-    print('-----------------\n')
-    mb.cont_param.set_value(1e-5)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 1e-5#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(1e-5)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 1e-4#')
-    print('-----------------\n')
-    mb.cont_param.set_value(1e-4)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 1e-4#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(1e-4)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 1e-3#')
-    print('-----------------\n')
-    mb.cont_param.set_value(1e-3)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 1e-3#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(1e-3)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 1e-2#')
-    print('-----------------\n')
-    mb.cont_param.set_value(1e-2)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 1e-2#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(1e-2)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 2e-2#')
-    print('-----------------\n')
-    mb.cont_param.set_value(2e-2)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 2e-2#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(2e-2)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 5e-2#')
-    print('-----------------\n')
-    mb.cont_param.set_value(5e-2)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 5e-2#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(5e-2)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 8e-2#')
-    print('-----------------\n')
-    mb.cont_param.set_value(5e-2)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 8e-2#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(5e-2)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 1e-1#')
-    print('-----------------\n')
-    mb.cont_param.set_value(1e-1)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 1e-1#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(1e-1)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 2e-1#')
-    print('-----------------\n')
-    mb.cont_param.set_value(2e-1)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 2e-1#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(2e-1)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 4e-1#')
-    print('-----------------\n')
-    mb.cont_param.set_value(4e-1)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    
-    print('\n-----------------')
-    print('#\epsilon = 5e-1#')
-    print('-----------------\n')
-    mb.cont_param.set_value(5e-1)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 4e-1#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(4e-1)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #
+    #print('\n-----------------')
+    #print('#\epsilon = 5e-1#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(5e-1)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 6e-1#')
-    print('-----------------\n')
-    mb.cont_param.set_value(6e-1)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 6e-1#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(6e-1)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 7e-1#')
-    print('-----------------\n')
-    mb.cont_param.set_value(7e-1)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 7e-1#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(7e-1)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 7.5e-1#')
-    print('-----------------\n')
-    mb.cont_param.set_value(7.5e-1)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 7.5e-1#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(7.5e-1)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 8e-1#')
-    print('-----------------\n')
-    mb.cont_param.set_value(8e-1)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    
-    print('\n-----------------')
-    print('#\epsilon = 8.5e-1#')
-    print('-----------------\n')
-    mb.cont_param.set_value(8.5e-1)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 8e-1#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(8e-1)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #
+    #print('\n-----------------')
+    #print('#\epsilon = 8.5e-1#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(8.5e-1)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 8.8e-1#')
-    print('-----------------\n')
-    mb.cont_param.set_value(8.8e-1)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 8.8e-1#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(8.8e-1)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 9e-1#')
-    print('-----------------\n')
-    mb.cont_param.set_value(9e-1)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 9e-1#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(9e-1)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 9.1e-1#')
-    print('-----------------\n')
-    mb.cont_param.set_value(9.1e-1)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 9.1e-1#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(9.1e-1)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 9.2e-1#')
-    print('-----------------\n')
-    mb.cont_param.set_value(9.2e-1)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 9.2e-1#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(9.2e-1)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 9.3e-1#')
-    print('-----------------\n')
-    mb.cont_param.set_value(9.3e-1)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 9.3e-1#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(9.3e-1)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 9.4e-1#')
-    print('-----------------\n')
-    mb.cont_param.set_value(9.4e-1)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 9.4e-1#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(9.4e-1)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 9.5e-1#')
-    print('-----------------\n')
-    mb.cont_param.set_value(9.5e-1)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 9.5e-1#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(9.5e-1)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 9.6e-1#')
-    print('-----------------\n')
-    mb.cont_param.set_value(9.6e-1)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 9.6e-1#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(9.6e-1)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 9.7e-1#')
-    print('-----------------\n')
-    mb.cont_param.set_value(9.7e-1)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 9.7e-1#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(9.7e-1)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 9.8e-1#')
-    print('-----------------\n')
-    mb.cont_param.set_value(9.8e-1)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 9.8e-1#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(9.8e-1)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
-    print('\n-----------------')
-    print('#\epsilon = 9.9e-1#')
-    print('-----------------\n')
-    mb.cont_param.set_value(9.9e-1)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
-    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-                            keepfiles=False)
+    #print('\n-----------------')
+    #print('#\epsilon = 9.9e-1#')
+    #print('-----------------\n')
+    #mb.cont_param.set_value(9.9e-1)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
+    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+    #                        keepfiles=False)
 
     print('\n-----------------')
     print('#\epsilon = 1#')
@@ -772,8 +781,8 @@ def main():
     #    update_time_derivatives(flowsheet,t)
     #print_violated_constraints(flowsheet,t)
 
-    with open('dyn_fs_sol.txt','w') as f:
-        flowsheet.display(ostream=f)
+    #with open('dyn_fs_sol.txt','w') as f:
+    #    flowsheet.display(ostream=f)
 
     
     '''

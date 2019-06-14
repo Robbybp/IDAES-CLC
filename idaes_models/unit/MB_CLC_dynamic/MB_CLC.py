@@ -1540,7 +1540,7 @@ class _MB(UnitModel):
         # BC for solid components mass balance
         def rule_eq_f2(b,j,t):
             return 1e2*b.S_flux[1,j,t]*b.A_bed \
-                    == 1e2*b.Solid_In_M[t]*b.Solid_In_x[j,t] 
+                    == 1e2*b.Solid_In_M[t]*b.Solid_In_x[j,t]
 #             Vbed = (1-eps)*Abed*L, but L=1 here because of scaling
         self.eq_f2 = Constraint(self.SolidList, self.t, rule=rule_eq_f2,
                                     doc = 'Boundary condition for solid \
