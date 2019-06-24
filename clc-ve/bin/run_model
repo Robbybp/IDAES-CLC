@@ -1,7 +1,0 @@
-#!/home/rparker1/Models/IDAES_CLC/clc-ve/bin/python3
-# EASY-INSTALL-DEV-SCRIPT: 'idaes-models==0.1.0','run_model'
-__requires__ = 'idaes-models==0.1.0'
-__import__('pkg_resources').require('idaes-models==0.1.0')
-__file__ = '/home/rparker1/Models/IDAES_CLC/clc-ve/src/idaes-models/scripts/run_model'
-with open(__file__) as f:
-    exec(compile(f.read(), __file__, 'exec'))
