@@ -6,12 +6,11 @@ from pyomo.core.base.var import SimpleVar, IndexedVar
 from pyomo.dae import *
 from pyomo.util.calc_var_value import calculate_variable_from_constraint
 from idaes_models.core import FlowsheetModel, ProcBlock
-import MB_CLC as MB_CLC_fuel
 import pdb
 import ss_sim 
 from idaes_models.core import FlowsheetModel, ProcBlock
-import MB_CLC as MB_CLC_fuel
-from utils import setInputs, perturbInputs, setICs, initialize_ss, make_flowsheet, make_square
+import mb_clc as MB_CLC_fuel
+from utils import setInputs, perturbInputs, setICs, initialize_ss, make_flowsheet, make_square, print_violated_constraints
 #import dyn_sim 
 
 # ^ for debugging purposes 
@@ -655,11 +654,14 @@ def initialize_next_t(fs):
 
 def implicit_integrate(fs):
     # expects fs to be a model defined over a single finite element. 
+    # add option to this function for initialization method (?)
     m = fs.MB_fuel
 
     for t in m.t:
         alg_update(fs,t)
         update_time_derivatives(fs,t)
+
+    # initialize, at first via explicit integration 
 
     opt = SolverFactory('ipopt')    
     opt.options = {'tol': 1e-8,
@@ -776,21 +778,42 @@ def initialize_next_fe(fe1,fe2):
                     index1 = tuple(index1_list)
                     var2[index].set_value( var1[index1].value )
 
+def copy_inputs(mb, fs_list):
+    fs_list[0].MB_fuel.Solid_In_M[0].fix(mb.Solid_In_M[0].value)
+    fs_list[0].MB_fuel.Solid_In_Ts[0].fix(mb.Solid_In_Ts[0].value)
+    for i in mb.SolidList:
+        fs_list[0].MB_fuel.Solid_In_x[i,0].fix(mb.Solid_In_x[i,0].value)
+    fs_list[0].MB_fuel.Gas_In_F[0].fix(mb.Gas_In_F[0].value)
+    fs_list[0].MB_fuel.Gas_In_P[0].fix(mb.Gas_In_P[0].value)
+    fs_list[0].MB_fuel.Gas_In_Tg[0].fix(mb.Gas_In_Tg[0].value)
+    for i in mb.GasList:
+        fs_list[0].MB_fuel.Gas_In_y[i,0].fix(mb.Gas_In_y[i,0].value)
+
+    for fe in fs_list:
+        for t in fs_list[fe].MB_fuel.t:
+            if t != fs_list[fe].MB_fuel.t.first():
+                fs_list[fe].MB_fuel.Solid_In_M[t].fix(mb.Solid_In_M[fe+t].value)
+                fs_list[fe].MB_fuel.Solid_In_Ts[t].fix(mb.Solid_In_Ts[fe+t].value)
+                for i in mb.SolidList:
+                    fs_list[fe].MB_fuel.Solid_In_x[i,t].fix(mb.Solid_In_x[i,fe+t].value)
+                fs_list[fe].MB_fuel.Gas_In_F[t].fix(mb.Gas_In_F[fe+t].value)
+                fs_list[fe].MB_fuel.Gas_In_P[t].fix(mb.Gas_In_P[fe+t].value)
+                fs_list[fe].MB_fuel.Gas_In_Tg[t].fix(mb.Gas_In_Tg[fe+t].value)
+                for i in mb.GasList:
+                    fs_list[fe].MB_fuel.Gas_In_y[i,t].fix(mb.Gas_In_y[i,fe+t].value)
+
 
 def clc_integrate(mb):
 
     ss_flowsheet = ss_sim.main()
 
     time_set = mb.t.get_finite_elements()
-    print(time_set)
     ncp = 0
     for t in mb.t:
-        print(t)
         if t < time_set[1]:
             ncp = ncp + 1
         else:
             break
-    print(ncp)
     if ncp == 1:
         method = 'BFD1'
     elif ncp > 1:
@@ -853,61 +876,24 @@ def clc_integrate(mb):
     for fe in time_set:
         setInputs(fs_list[fe])
 
+    gas_y_ptb = {'CO2': 0.04999, 'H2O': 0.00001, 'CH4': 0.95}
+
     # perturb inputs
-    for fe in time_set:
-        for t in fs_list[fe].MB_fuel.t:
-            perturbInputs(fs_list[fe],t,Solid_M=691.4)
-
-
-    # fix and deactivate unused stuff
-    #for t in time_set:
-    #    # should really put all this in its own utility function...
-    #    fs_list[t].MB_fuel.eq_d4.deactivate()
-    #    fs_list[t].MB_fuel.eq_d5.deactivate()
-    #    fs_list[t].MB_fuel.eq_d8.deactivate()
-    #    fs_list[t].MB_fuel.eq_d9.deactivate()
-    #    fs_list[t].MB_fuel.eq_d10.deactivate()
-    #    fs_list[t].MB_fuel.eq_g7.deactivate()
-    #    fs_list[t].MB_fuel.eq_g8.deactivate()
-    #    fs_list[t].MB_fuel.eq_g10.deactivate()
-    #    fs_list[t].MB_fuel.eq_g11.deactivate()
-    #    fs_list[t].MB_fuel.eq_g12.deactivate()
-    #    fs_list[t].MB_fuel.eq_g13.deactivate()
-    #    fs_list[t].MB_fuel.eq_g14.deactivate()
-    #    fs_list[t].MB_fuel.eq_g4.deactivate()
-    #    fs_list[t].MB_fuel.eq_g5.deactivate()
-    #    fs_list[t].MB_fuel.eq_g2.deactivate()
-    #    fs_list[t].MB_fuel.Tg_GW.fix(0.0)
-    #    fs_list[t].MB_fuel.Tw_GW.fix(0.0)
-    #    fs_list[t].MB_fuel.Tg_refractory.fix(0.0)
-    #    fs_list[t].MB_fuel.Tw_Wamb.fix()
-    #    fs_list[t].MB_fuel.Tw.fix()
-    #    fs_list[t].MB_fuel.Nuw.fix()
-    #    fs_list[t].MB_fuel.Nu_ext.fix()
-    #    fs_list[t].MB_fuel.hw.fix()
-    #    fs_list[t].MB_fuel.hext.fix()
-    #    fs_list[t].MB_fuel.hext2.fix()
-    #    fs_list[t].MB_fuel.U.fix()
-    #    fs_list[t].MB_fuel.Uw.fix()
-    #    fs_list[t].MB_fuel.Pr_ext.fix()
-    #    fs_list[t].MB_fuel.Ra.fix()
-    #    fs_list[t].MB_fuel.Re.fix()
-    #    ###
-    #    # other tentatively unused variables:
-    #    fs_list[t].MB_fuel.mFe_mAl.fix(0.0)
-    #    fs_list[t].MB_fuel.Solid_Out_M_Comp.fix()
-
-    #    # choose how to calculate certain algebraic variables:
-    #    fs_list[t].MB_fuel.eq_c5.deactivate()
+    copy_inputs(mb, fs_list)
+    #for fe in time_set:
+    #    for t in fs_list[fe].MB_fuel.t:
+    #        copy_inputs(fs_list[fe].MB_fuel, t, mb, fe+t)
+            #perturbInputs(fs_list[fe], t, Gas_y=gas_y_ptb)
 
     for t in time_set:
         make_square(fs_list[t].MB_fuel)
         
 
-    with open('one_fe.txt','w') as f:
-        fs_list[0].display(ostream=f)
+    #with open('one_fe.txt','w') as f:
+    #    fs_list[0].display(ostream=f)
 
     for i in range(0,len(time_set)):
+        # should initialization occur here or in the imp_int function?
         implicit_integrate(fs_list[time_set[i]])
         if i != len(time_set)-1:
             set_fe_ICs(fs_list[time_set[i]],fs_list[time_set[i+1]])
@@ -917,7 +903,9 @@ def clc_integrate(mb):
             # initialize next fe, somehow
             # a) initialize to initial conditions b) continuation c) explicit integrator
 
-    print([ fs_list[t].MB_fuel.Cg[0.00062,'H2O',5].value for t in time_set ] )
+    fe_width = time_set[0]
+    # ^ assumes a fixed finite element width
+    print([ fs_list[t].MB_fuel.Cg[0.00062,'H2O',fe_width].value for t in time_set ] )
         
     
     return fs_list
@@ -927,99 +915,6 @@ def clc_integrate(mb):
 def main():
     # main routine
     print('executing main routine')
-
-    ss_flowsheet = ss_sim.main()
-
-    time_set = [0,5,10,15,20,25,30,
-            35,40,45,50,55,60,65,70,
-            75,80,85,90,95,100,105,110,115,120,
-            125,130,135,140,145,150,155,160,165]
-    fs_list = {}
-    for t in time_set: fs_list[t] = Flowsheet()
-
-    # set initial conditions to steady state
-    for fe in time_set:
-        setICs(fs_list[fe],ss_flowsheet)
-
-    # initialize variables to steady state values
-    for fe in time_set:
-        initialize_ss(fs_list[fe],ss_flowsheet)
-
-    # set input values for each finite element model
-    for fe in time_set:
-        setInputs(fs_list[fe])
-
-    # perturb inputs
-    for fe in time_set:
-        for t in fs_list[fe].MB_fuel.t:
-            perturbInputs(fs_list[fe],t,Solid_M=691.4)
-
-
-    # fix and deactivate unused stuff
-    for t in time_set:
-        # should really put all this in its own utility function...
-        fs_list[t].MB_fuel.eq_d4.deactivate()
-        fs_list[t].MB_fuel.eq_d5.deactivate()
-        fs_list[t].MB_fuel.eq_d8.deactivate()
-        fs_list[t].MB_fuel.eq_d9.deactivate()
-        fs_list[t].MB_fuel.eq_d10.deactivate()
-        fs_list[t].MB_fuel.eq_g7.deactivate()
-        fs_list[t].MB_fuel.eq_g8.deactivate()
-        fs_list[t].MB_fuel.eq_g10.deactivate()
-        fs_list[t].MB_fuel.eq_g11.deactivate()
-        fs_list[t].MB_fuel.eq_g12.deactivate()
-        fs_list[t].MB_fuel.eq_g13.deactivate()
-        fs_list[t].MB_fuel.eq_g14.deactivate()
-        fs_list[t].MB_fuel.eq_g4.deactivate()
-        fs_list[t].MB_fuel.eq_g5.deactivate()
-        fs_list[t].MB_fuel.eq_g2.deactivate()
-        fs_list[t].MB_fuel.Tg_GW.fix(0.0)
-        fs_list[t].MB_fuel.Tw_GW.fix(0.0)
-        fs_list[t].MB_fuel.Tg_refractory.fix(0.0)
-        fs_list[t].MB_fuel.Tw_Wamb.fix()
-        fs_list[t].MB_fuel.Tw.fix()
-        fs_list[t].MB_fuel.Nuw.fix()
-        fs_list[t].MB_fuel.Nu_ext.fix()
-        fs_list[t].MB_fuel.hw.fix()
-        fs_list[t].MB_fuel.hext.fix()
-        fs_list[t].MB_fuel.hext2.fix()
-        fs_list[t].MB_fuel.U.fix()
-        fs_list[t].MB_fuel.Uw.fix()
-        fs_list[t].MB_fuel.Pr_ext.fix()
-        fs_list[t].MB_fuel.Ra.fix()
-        fs_list[t].MB_fuel.Re.fix()
-        ###
-        # other tentatively unused variables:
-        fs_list[t].MB_fuel.mFe_mAl.fix(0.0)
-        fs_list[t].MB_fuel.Solid_Out_M_Comp.fix()
-
-        # choose how to calculate certain algebraic variables:
-        fs_list[t].MB_fuel.eq_c5.deactivate()
-
-    #implicit_integrate(fs_list[0])
-    #set_fe_ICs(fs_list[0], fs_list[5])
-    #initialize_next_fe(fs_list[0], fs_list[5])
-
-    with open('one_fe.txt','w') as f:
-        fs_list[0].display(ostream=f)
-
-    for i in range(0,len(time_set)):
-        implicit_integrate(fs_list[time_set[i]])
-        if i != len(time_set)-1:
-            set_fe_ICs(fs_list[time_set[i]],fs_list[time_set[i+1]])
-            initialize_next_fe(fs_list[time_set[i]],fs_list[time_set[i+1]])
-            
-
-            # set initial conditions of next fe to final values of current fe
-            # initialize next fe, somehow
-            # a) initialize to initial conditions b) continuation c) explicit integrator
-
-    print([ fs_list[t].MB_fuel.Cg[0.00062,'H2O',5].value for t in time_set ] )
-        
-    
-    return fs_list
-
-
 
 if __name__ == '__main__':
     main()

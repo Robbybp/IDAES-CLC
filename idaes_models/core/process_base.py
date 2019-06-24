@@ -23,7 +23,7 @@ from .util.oa import apply_OA, add_oa_constraints
 from .util.solve import SolverError, get_solvers
 from .util.idjson import save_json, load_json
 from .util.var import Wrapper
-from pyomo.core.base.indexed_component import _IndexedComponent_slice
+#from pyomo.core.base.indexed_component import _IndexedComponent_slice
 from .util import idjson2 as j2
 # Some more inforation about this module
 __author__ = "John Eslick <john.eslick@netl.doe.gov>, "\

@@ -1346,10 +1346,11 @@ class _MB(UnitModel):
             if z == b.z.first():
                 return Constraint.Skip #The BC for Tg is under '_make_bdry_conds' 
             else:
-                return b.cont_param*b.eps*b.L*b.rho_vap[z,t]*b.cp_gas[z,t]*b.dTgdt[z,t] == \
-                            - b.dGh_fluxdz[z,t] \
-                            - b.Tg_GS[z,t]*b.L - b.Tg_GW[z,t]*b.L \
-                            - b.Tg_refractory[z,t]*b.L
+                #return b.cont_param*b.eps*b.L*b.rho_vap[z,t]*b.cp_gas[z,t]*b.dTgdt[z,t] == \
+                #            - b.dGh_fluxdz[z,t] \
+                #            - b.Tg_GS[z,t]*b.L - b.Tg_GW[z,t]*b.L \
+                #            - b.Tg_refractory[z,t]*b.L
+                return b.Tg[z,t] == 1e3*b.Ts[z,t]
         self.eq_d1 = Constraint(self.z, self.t, rule=rule_eq_d1,
                                 doc = 'Gas phase energy balance')
         # specifies dTgdt. 1e-6 is not a unit conversion...
@@ -1646,12 +1647,12 @@ class _MB(UnitModel):
                 return b.q[z,j,0] == b.q_0[z,j]
         self.eq_h2 = Constraint(self.z,self.SolidList,rule=rule_eq_h2)
 
-        def rule_eq_h3(b,z):
-            if z == b.z.first():
-                return Constraint.Skip
-            else:
-                return b.Tg[z,0] == b.Tg_0[z]
-        self.eq_h3 = Constraint(self.z,rule=rule_eq_h3)
+        #def rule_eq_h3(b,z):
+        #    if z == b.z.first():
+        #        return Constraint.Skip
+        #    else:
+        #        return b.Tg[z,0] == b.Tg_0[z]
+        #self.eq_h3 = Constraint(self.z,rule=rule_eq_h3)
 
         def rule_eq_h4(b,z):
             #if z == b.z.first():
@@ -1660,13 +1661,6 @@ class _MB(UnitModel):
             else:
                 return (b.Ts[z,0]) == b.Ts_0[z]
         self.eq_h4 = Constraint(self.z,rule=rule_eq_h4)
-
-
-
-
-
-
-    
 
     #==========================================================================        
 

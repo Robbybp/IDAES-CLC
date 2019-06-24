@@ -11,7 +11,7 @@ import pdb
 import ss_sim 
 from idaes_models.core import FlowsheetModel, ProcBlock
 import MB_CLC as MB_CLC_fuel
-from utils import setInputs, perturbInputs, setICs, initialize_ss, make_flowsheet, make_square
+from utils import setInputs, perturbInputs, setICs, initialize_ss, make_flowsheet, make_square, print_violated_constraints
 #import dyn_sim 
 
 # ^ for debugging purposes 
@@ -181,6 +181,9 @@ def alg_update(fs,t):
     #
 
     for z in m.z:
+        ### Tg, now algebraic ###
+        if z != m.z.first():
+            calculate_variable_from_constraint(m.Tg[z,t], m.eq_d1[z,t])
         # CgT:
         m.CgT[z,t].set_value( sum( m.Cg[z,j,t].value for j in m.GasList ) )
         # y:
@@ -206,7 +209,7 @@ def alg_update(fs,t):
     # vg_in:
     calculate_variable_from_constraint(m.vg_in[t],m.eq_f5[t])
     # could do this one finite element at a time, directly after initializing P-values
-    verbose_vg = False 
+    verbose_vg = True 
     for z in m.z:    
         if z != 0:
             prev = 0
@@ -220,7 +223,7 @@ def alg_update(fs,t):
             # dPdz:
             calculate_variable_from_constraint(m.dPdz[z,t],m.dPdz_disc_eq[z,t])
             # vg:
-            if verbose_vg: print('\t',z)
+            if verbose_vg: print(t,'\t',z)
             if verbose_vg: print('\tvg pre-update:\t',m.vg[z,t].value)
             if verbose_vg: print('\tdPdz: ',m.dPdz[z,t].value)
             a = 1.75/150*m.rho_vap[z,t].value*(1-m.eps.value)*m.L.value/\
@@ -409,6 +412,8 @@ def alg_update(fs,t):
                 calculate_variable_from_constraint(m.dS_fluxdz[z,j,t],m.dS_fluxdz_disc_eq[z,j,t])
             calculate_variable_from_constraint(m.dGh_fluxdz[z,t],m.dGh_fluxdz_disc_eq[z,t])
             calculate_variable_from_constraint(m.dSh_fluxdz[z,t],m.dSh_fluxdz_disc_eq[z,t])
+        ### Tg, now algebraic ###
+            calculate_variable_from_constraint(m.Tg[z,t], m.eq_d1[z,t])
             #calculate_variable_from_constraint(m.dTsdz[z,t],m.dTsdz_disc_eq[z,t])
         
     # outlet and overall parameters, not dependent on z:
@@ -449,8 +454,8 @@ def update_time_derivatives(fs,t):
                 calculate_variable_from_constraint(m.dqdt[z,j,t],m.eq_b2[z,j,t])
                 if verbose: print('\t\tdqdt ',z,',',j,',',t,':\t',m.dqdt[z,j,t].value)
 
-            calculate_variable_from_constraint(m.dTgdt[z,t],m.eq_d1[z,t])
-            if verbose: print('\t\tdTgdt ',z,',',t,':\t',m.dTgdt[z,t].value)
+            #calculate_variable_from_constraint(m.dTgdt[z,t],m.eq_d1[z,t])
+            #if verbose: print('\t\tdTgdt ',z,',',t,':\t',m.dTgdt[z,t].value)
 
             calculate_variable_from_constraint(m.dTsdt[z,t],m.eq_d6[z,t])
             if verbose: print('\t\tdTsdt ',z,',',t,':\t',m.dTsdt[z,t].value)
@@ -904,8 +909,8 @@ def clc_integrate(mb):
         make_square(fs_list[t].MB_fuel)
         
 
-    with open('one_fe.txt','w') as f:
-        fs_list[0].display(ostream=f)
+    #with open('one_fe.txt','w') as f:
+    #    fs_list[0].display(ostream=f)
 
     for i in range(0,len(time_set)):
         implicit_integrate(fs_list[time_set[i]])
@@ -1004,6 +1009,8 @@ def main():
         fs_list[0].display(ostream=f)
 
     for i in range(0,len(time_set)):
+        print('hello')
+        print_violated_constraints(fs_list[time_set[i]])
         implicit_integrate(fs_list[time_set[i]])
         if i != len(time_set)-1:
             set_fe_ICs(fs_list[time_set[i]],fs_list[time_set[i+1]])

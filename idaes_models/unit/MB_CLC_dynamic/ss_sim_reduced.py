@@ -21,7 +21,8 @@ from pyomo.opt import SolverFactory
 import time
 
 from idaes_models.core import FlowsheetModel, ProcBlock
-import ss_mb_clc as MB_CLC_fuel
+import ss_mb_reduced as MB_CLC_fuel
+from utils import print_violated_constraints
 
 @ProcBlock("Flowsheet")
 class _Flowsheet(FlowsheetModel):
@@ -343,17 +344,19 @@ def main():
     ts = time.time() 
 
     mb = flowsheet.MB_fuel
+
+    tol = 1e-8
     
     # Initialize fuel reactor
     flowsheet.MB_fuel._initialize(outlvl=1,
-                              optarg={"tol"            : 1e-8,
+                              optarg={"tol"            : tol,
                                       "max_cpu_time"   : 600,
                                       "print_level"    : 5,
                                       "halt_on_ampl_error": 'yes'})        
        
     # Create a solver
     opt = SolverFactory('ipopt')
-    opt.options = {'tol': 1e-8,
+    opt.options = {'tol': tol,
                    'linear_solver'  : 'ma27',
                    'bound_push': 1e-8,
                    'max_cpu_time': 600,
@@ -367,10 +370,16 @@ def main():
     #flowsheet.MB_fuel.Gas_In_y['H2O'].fix(0.00001)
     #flowsheet.MB_fuel.Gas_In_y['CH4'].fix(0.96)
 
+    flowsheet.MB_fuel.eq_d1.deactivate()
+    flowsheet.MB_fuel.eq_d1_r.activate()
+    for index in flowsheet.MB_fuel.dGh_fluxdz:
+        flowsheet.MB_fuel.dGh_fluxdz[index].fix(0)
+    flowsheet.MB_fuel.dGh_fluxdz_disc_eq.deactivate()
 
+    print_violated_constraints(flowsheet, tol) 
 
-    #results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
-    #                        keepfiles=False)
+    results = opt.solve(flowsheet,tee=True,symbolic_solver_labels=False,
+                            keepfiles=False)
     
     
     print("\n")
@@ -385,7 +394,7 @@ def main():
     # Plot some variables 
     #results_plot_fuel_reactor(flowsheet) 
 
-    with open('ss_fs.txt','w') as f:
+    with open('ss_fs_reduced.txt','w') as f:
         flowsheet.display(ostream=f)
 
 
