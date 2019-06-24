@@ -35,9 +35,9 @@ import scipy
 import casadi
 
 from idaes_models.core import FlowsheetModel, ProcBlock
-import MB_CLC as MB_CLC_fuel
+import mb_clc as MB_CLC_fuel
 import ss_sim
-from CLC_integrate import alg_update, integrate, update_time_derivatives, implicit_integrate
+from clc_int import alg_update, integrate, update_time_derivatives, implicit_integrate
 from submodel import find_algebraic_variables, get_alg_var_data, make_alg_var_const_map, fix_z0
 
 import pdb

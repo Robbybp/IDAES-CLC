@@ -21,7 +21,7 @@ from pyomo.opt import SolverFactory
 import time
 
 from idaes_models.core import FlowsheetModel, ProcBlock
-import SS_MB_CLC as MB_CLC_fuel
+import ss_mb_clc as MB_CLC_fuel
 
 @ProcBlock("Flowsheet")
 class _Flowsheet(FlowsheetModel):
@@ -348,7 +348,7 @@ def main():
     flowsheet.MB_fuel._initialize(outlvl=1,
                               optarg={"tol"            : 1e-8,
                                       "max_cpu_time"   : 600,
-                                      "print_level"    : 1,
+                                      "print_level"    : 5,
                                       "halt_on_ampl_error": 'yes'})        
        
     # Create a solver
@@ -385,7 +385,7 @@ def main():
     # Plot some variables 
     #results_plot_fuel_reactor(flowsheet) 
 
-    with open('ss_flowsheet.txt','w') as f:
+    with open('ss_fs.txt','w') as f:
         flowsheet.display(ostream=f)
 
 

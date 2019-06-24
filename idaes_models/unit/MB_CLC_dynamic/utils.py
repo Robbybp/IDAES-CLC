@@ -16,7 +16,10 @@ import scipy
 import casadi
 
 from idaes_models.core import FlowsheetModel, ProcBlock
-import MB_CLC as MB_CLC_fuel
+import mb_clc as MB_CLC_fuel
+
+import os
+import csv
 
 import pdb
 
@@ -43,7 +46,7 @@ def setInputs(fs):
     fs.MB_fuel.L.fix(5) # m
     fs.MB_fuel.eps.fix(0.4) # (-)
 
-def perturbInputs(fs,t,**kwargs):
+def perturbInputs(fs, t, **kwargs):
     m = fs.MB_fuel
     if 'Solid_M' in kwargs:
         m.Solid_In_M[t].fix( kwargs['Solid_M'] )
@@ -64,7 +67,7 @@ def perturbInputs(fs,t,**kwargs):
         m.Gas_In_y['H2O',t].fix( kwargs['Gas_y']['H2O'] )
         m.Gas_In_y['CH4',t].fix( kwargs['Gas_y']['CH4'] )
 
-def setICs(fs,fs_ss):
+def setICs(fs, fs_ss):
     # getting the names from the variables would only be useful if I have a set
     # of differential variables defined already
     diff_vars_t = []
@@ -329,5 +332,85 @@ def load_fe(fe,fs,t0):
 
                         fs_index = tuple(index_list)
                         vfs[fs_index].set_value(vfe[index].value)
+
+def write_results(fs,fn,diff_vars):
+    # inputs: flowsheet, filename, list of differential variables
+    mb = fs.MB_fuel
+    wd = os.getcwd()
+    
+    if not os.path.isdir(wd+'/results'):
+        os.mkdir(wd+'/results')
+    else:
+        print('results directory already exists')
+
+    with open('results/'+fn, 'w', newline='') as f:
+        writer = csv.writer(f, delimiter=',')
+        row0 = []
+        row0.append('name')
+        # should really do this systematically, finding some 'max no. indices'
+        max_n_idx = 3
+        row0.append('idx1')
+        row0.append('idx2')
+        for t in mb.t:
+            row0.append(str(t))
+        writer.writerow(row0)
+
+        for v in diff_vars:
+            name = v.getname()
+            if isinstance(v,SimpleVar):
+                continue
+            n_idx = v.index_set().dimen
+            if mb.t not in v.index_set().set_tuple:
+                continue
+            idx_list = []
+            if v.index_set() == mb.t:
+                row = []
+                row.append(name)
+                idx_list.append('')
+                idx_list.append('')
+                for idx in idx_list:
+                    row.append(idx)
+                for t in mb.t:
+                   row.append(v[t].value)
+                writer.writerow(row)
+                continue
+
+            elif n_idx >= 2:
+                if v.index_set().set_tuple[0] != mb.t:
+                    product = v.index_set().set_tuple[0]
+                else:
+                    raise ValueError('Inconsistency, fix code')
+                # now product is a generator:
+                # either a set or a set product
+
+                for s in v.index_set().set_tuple:
+                    if s != mb.t and s != product:
+                        product = product *s
+                #for index in product:
+                #    print(index)
+
+                for index in product:
+                    # index is either a hashable value or a tuple
+                    row = [] 
+                    row.append(name)
+                    if isinstance(index,tuple):
+                        for i in range(0,max_n_idx-1):
+                            try:
+                                row.append(index[i])
+                            except IndexError:
+                                row.append('')
+                    else:
+                        row.append(index)
+                        for i in range(1, max_n_idx-1):
+                            row.append('')
+                    
+                    for t in mb.t:
+                        if isinstance(index, tuple):
+                            full_index = index + (t,) 
+                        else:
+                            full_index = (index,t)
+                        val = v[full_index].value 
+                        row.append(val)
+                    writer.writerow(row)
 
 

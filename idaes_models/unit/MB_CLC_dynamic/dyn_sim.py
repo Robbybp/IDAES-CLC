@@ -33,10 +33,14 @@ import scipy
 import casadi
 
 from idaes_models.core import FlowsheetModel, ProcBlock
-import MB_CLC as MB_CLC_fuel
+import mb_clc as MB_CLC_fuel
 import ss_sim
-from CLC_integrate import alg_update, integrate, update_time_derivatives, implicit_integrate, clc_integrate
-from utils import load_fe
+from clc_int import alg_update, integrate, update_time_derivatives, implicit_integrate, clc_integrate
+from utils import load_fe, write_results
+from utils import perturbInputs as ptb_inputs
+
+import csv
+import os
 
 import pdb
 
@@ -111,8 +115,8 @@ class _Flowsheet(FlowsheetModel):
                 press_drop = 'Ergun',
                 fe_set = fe_set,
                 ncp = 3,
-                horizon = 60, # was 10, then 1, then 10^-2, then 10^-4, now back to 1...
-                nfe_t = 12,   #  "  "
+                horizon = 300, # was 10, then 1, then 10^-2, then 10^-4, now back to 1...
+                nfe_t = 60,   #  "  "
                 ncp_t = 1) # was 3
 
     
@@ -405,12 +409,13 @@ def main():
     #write_differential_equations(flowsheet)
 
     # Then perturb
+    ptb = {}
     solid_x_ptb = {'Fe2O3':0.25, 'Fe3O4':0.01, 'Al2O3':0.74}
-    gas_y_ptb = {'CO2':0.03999, 'H2O':0.00001, 'CH4':0.96}
+    gas_y_ptb = {'CO2':0.04999, 'H2O':0.00001, 'CH4':0.95}
     #perturbInputs(flowsheet,0,Solid_M=691.4,Solid_T=1283.15,Solid_x=solid_x_ptb,
     #        Gas_F=150,Gas_T=350,Gas_y=gas_y_ptb)
     for t in mb.t:
-        perturbInputs(flowsheet,t,Solid_M=691.4)
+        ptb_inputs(flowsheet, t, Gas_T=350)
 
     # should put this in a dedicated ~intialize~ function
     # that also intelligently initializes the model after perturbation
@@ -472,6 +477,8 @@ def main():
 
     # initialized at steady state, works regardless:
     flowsheet.strip_bounds()
+
+    print_violated_constraints(flowsheet,tol)
 
     fs_list = clc_integrate(mb)
     for t in fs_list:
@@ -775,6 +782,108 @@ def main():
 
     
     print_violated_constraints(flowsheet,tol)
+
+    diff_vars = [mb.Cg, mb.q, mb.Tg, mb.Ts]
+
+    write_results(flowsheet, 'gas_T.csv', diff_vars)
+
+    #wd = os.getcwd()
+    #
+    #if not os.path.isdir(wd+'/results'):
+    #    os.mkdir(wd+'/results')
+    #else:
+    #    print('results directory already exists')
+
+    #with open('results/solid_m.csv', 'w', newline='') as f:
+    #    writer = csv.writer(f, delimiter=',')
+    #    row0 = []
+    #    row0.append('name')
+    #    # should really do this systematically, finding some 'max no. indices'
+    #    max_n_idx = 3
+    #    row0.append('idx1')
+    #    row0.append('idx2')
+    #    for t in mb.t:
+    #        row0.append(str(t))
+    #    writer.writerow(row0)
+
+    #    for v in diff_vars:
+    #        name = v.getname()
+    #        if isinstance(v,SimpleVar):
+    #            continue
+    #        n_idx = v.index_set().dimen
+    #        print(v.index_set().set_tuple)
+    #        if mb.t not in v.index_set().set_tuple:
+    #            continue
+    #        idx_list = []
+    #        if v.index_set() == mb.t:
+    #            row = []
+    #            row.append(name)
+    #            idx_list.append('')
+    #            idx_list.append('')
+    #            for idx in idx_list:
+    #                row.append(idx)
+    #            for t in mb.t:
+    #               row.append(v[t].value)
+    #            writer.writerow(row)
+    #            continue
+
+    #        elif n_idx >= 2:
+    #            if v.index_set().set_tuple[0] != mb.t:
+    #                product = v.index_set().set_tuple[0]
+    #            else:
+    #                raise ValueError('Inconsistency, fix code')
+    #            # now product is a generator:
+    #            # either a set or a set product
+
+    #            for s in v.index_set().set_tuple:
+    #                if s != mb.t and s != product:
+    #                    product = product *s
+    #            #for index in product:
+    #            #    print(index)
+
+    #            for index in product:
+    #                # index is either a hashable value or a tuple
+    #                row = [] 
+    #                row.append(name)
+    #                if isinstance(index,tuple):
+    #                    for i in range(0,max_n_idx-1):
+    #                        try:
+    #                            row.append(index[i])
+    #                        except IndexError:
+    #                            row.append('')
+    #                else:
+    #                    row.append(index)
+    #                    for i in range(1, max_n_idx-1):
+    #                        row.append('')
+    #                
+    #                for t in mb.t:
+    #                    if isinstance(index, tuple):
+    #                        full_index = index + (t,) 
+    #                    else:
+    #                        full_index = (index,t)
+    #                    val = v[full_index].value 
+    #                    row.append(val)
+    #                writer.writerow(row)
+
+#                for index in v:
+#                    row = []
+#                    row.append(v.getname())
+#                    idx_list = []
+#                    for i in range(0,n_idx-1):
+#                        # append the non-time indices of the variable
+#                        idx_list.append(index[i])
+#                    if n_idx < 3:
+#                        # ^3 should be replaced with n_max, or something
+#                        for i in range(0,3-n_index):
+#                            # fill in the remaning indices
+#                            idx_list.append('')
+#                    # better way to do this, maybe:
+#                    #    for i in range(0,max):
+#                    #        try row.append(idx_list[i])
+#                    #        except oob error: row.append('')
+#                    for idx in idx_list:
+#                        row.append(idx)
+#                    for t in m.t:
 
     #for t in mb.t:
     #    alg_update(flowsheet,t)
