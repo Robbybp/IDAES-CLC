@@ -76,7 +76,6 @@ def setICs(fs, fs_ss):
     diff_vars_t.append('Tg')
     diff_vars_t.append('Ts')
 
-
     for var_ss in fs_ss.MB_fuel.component_objects(Var,active=True):
         var_name = var_ss.getname()
         if var_name in diff_vars_t:
@@ -87,7 +86,6 @@ def setICs(fs, fs_ss):
                 ss_index_sets = var_ss.index_set()
 
             ic_param = getattr(fs.MB_fuel,var_name+'_0')
-
 
             for index in var_ss:
 
@@ -248,7 +246,7 @@ def make_square(m):
     # choose how to calculate certain algebraic variables:
     m.eq_c5.deactivate()
 
-#    m.strip_bounds()
+    m.strip_bounds()
 
 def make_flowsheet(**kwargs):
     if 'press_drop' in kwargs:

@@ -25,23 +25,24 @@ from pyomo.core.base.indexed_component import IndexedComponent
 #from pyomo.environ import *
 from pyomo.opt import SolverFactory
 
-from pyomo.contrib.pynumero.sparse import BlockSymMatrix
-from pyomo.contrib.pynumero.interfaces.nlp import PyomoNLP
-#from pyomo.contrib.pynumero.extensions import hsl
-
 from pyomo.dae import DerivativeVar, ContinuousSet, Simulator
 
 import time
 
-import scipy as sp
-import numpy as np
+import scipy
 import casadi
-import matplotlib.pyplot as plt
 
 from idaes_models.core import FlowsheetModel, ProcBlock
 import mb_clc as MB_CLC_fuel
 import ss_sim
-from clc_int import alg_update, integrate, update_time_derivatives, implicit_integrate
+from clc_int import alg_update, integrate, update_time_derivatives, implicit_integrate, clc_integrate
+from utils import load_fe, write_results
+from utils import perturbInputs as ptb_inputs
+from dyn_scale import (replace_variables, create_suffixes, is_indexed_by,
+                       get_non_time_index, create_scale_values)
+
+import csv
+import os
 
 import pdb
 
@@ -110,15 +111,17 @@ class _Flowsheet(FlowsheetModel):
         # controlled by fe_set...
         self.MB_fuel = MB_CLC_fuel.MB(
                 parent=self,
-                dae_method = 'OCLR',
+                z_dae_method = 'OCLR',
+                t_dae_method = 'OCLR',
+                #t_dae_method = 'BFD1',
                 press_drop = 'Ergun',
                 fe_set = fe_set,
                 ncp = 3,
-                horizon = 5, # was 10, then 1, then 10^-2, then 10^-4, now back to 1...
-                nfe_t = 1,   #  "  "
+                horizon = 60, # was 10, then 1, then 10^-2, then 10^-4, now back to 1...
+                nfe_t = 12,   #  "  "
                 ncp_t = 1) # was 3
 
-        
+    
 def setInputs(fs):    
     # ===== Fuel Reactor ===== 
     # Gas phase inlet conditions
@@ -132,7 +135,7 @@ def setInputs(fs):
            
         # Solid phase inlet conditions
         fs.MB_fuel.Solid_In_M[t].fix(591.4) #479.011) # kg/s
-        fs.MB_fuel.Solid_In_Ts[t].fix(1183.15)      # K
+        fs.MB_fuel.Solid_In_Ts[t].fix(1183.15)      # kK
         fs.MB_fuel.Solid_In_x['Fe2O3',t].fix(0.44999)
         fs.MB_fuel.Solid_In_x['Fe3O4',t].fix(1e-5)
         fs.MB_fuel.Solid_In_x['Al2O3',t].fix(0.55)
@@ -172,9 +175,11 @@ def setICs(fs,fs_ss):
     diff_vars_t.append('Tg')
     diff_vars_t.append('Ts')
 
+
     for var_ss in fs_ss.MB_fuel.component_objects(Var,active=True):
         var_name = var_ss.getname()
         if var_name in diff_vars_t:
+            print(var_name)
 
             if type(var_ss.index_set()) is _SetProduct:
                 ss_index_sets = var_ss.index_set().set_tuple
@@ -254,8 +259,6 @@ def initialize_ss(fs,fs_ss):
                 continue
 
 #def alg_update(fs,t):
-
-
 
         
 def print_summary_fuel_reactor(fs):
@@ -349,7 +352,7 @@ def print_violated_constraints(flowsheet,tol=1.0e-8):
                 print(const.name)
     print('- - -\n')
 
-    print('Variable bounds violated:')
+    print('Variable bounds violated')
     for var in flowsheet.MB_fuel.component_objects(Var,active=True):
         # don't use IndexedComponent here, variables are always indexed components 
         # could also do this by iterating over component_objects(SimpleVar)...?
@@ -357,9 +360,11 @@ def print_violated_constraints(flowsheet,tol=1.0e-8):
             for idx in var:
                 if not (var[idx].lb is None):
                     if (var[idx].value < var[idx].lb - 1.0e-8):
+                        pdb.set_trace()
                         print(var.name,idx)
                 if not (var[idx].ub is None):
                     if (var[idx].value > var[idx].ub + 1.0e-8):
+                        pdb.set_trace()
                         print(var.name,idx)
         else:
             if var.has_lb():
@@ -384,83 +389,43 @@ def write_differential_equations(flowsheet,suffix=''):
         m.eq_d6.pprint(ostream=f)
 
     print('Time-differential equations written to files')
-
-def get_vector_from_flowsheet(nlp,flowsheet):
-    
-    x = nlp.create_vector_x()
-    order = nlp.variable_order()
-
-    for i in range(0,nlp.nx):
-
-        # extract "name" prefix from order (everything before '[')
-        name = ''
-        index_string = ''
-        j = 0
-        for char in order[i]:
-            if char == '[' or char ==  '':
-                j = j + 1
-                # then create string containing the indices
-                while order[i][j] != ']' and order[i][j] != '':
-                    index_string = index_string + order[i][j] 
-                    j = j + 1
-                break
-            else:
-                name = name + char
-            j = j + 1
-
-        # create list of indices in the correct data types
-        indices = []
-        temp = ''
-        for char in index_string:
-            if char != ',' and char != '':
-                temp = temp + char
-            else:
-                indices.append(temp)
-                temp = ''
-        if temp != '':
-            indices.append(temp)
-
-        for j in range(0,len(indices)):
-            if indices[j] == '':
-                raise ValueError('Did not expect this.')
-            if indices[j][0].isdigit():
-                indices[j] = float(indices[j])
-        
-        # evaluate the named variables at the correct indices
-        if indices == []:
-            x[i] = eval('flowsheet.'+name).value
-        else:
-            x[i] = eval('flowsheet.'+name+str(indices)).value
-
-    return x
        
 def main():
     """
     Make the flowsheet object and solve
     """
-    ss_flowsheet = ss_sim.main()
+    ss_init = ss_sim.main()
 
     flowsheet = Flowsheet(name='MB_Model') 
 
     # fill in values of IC parameters from steady state solve
-    setICs(flowsheet,ss_flowsheet)
+    setICs(flowsheet,ss_init)
     
     # Fix variables
     setInputs(flowsheet) 
 
     # Initialize at steady state
-    initialize_ss(flowsheet,ss_flowsheet)
+    initialize_ss(flowsheet,ss_init)
     mb = flowsheet.MB_fuel
 
-    write_differential_equations(flowsheet)
+    #write_differential_equations(flowsheet)
 
     # Then perturb
+    ptb = {}
     solid_x_ptb = {'Fe2O3':0.25, 'Fe3O4':0.01, 'Al2O3':0.74}
-    gas_y_ptb = {'CO2':0.03999, 'H2O':0.00001, 'CH4':0.96}
-    #perturbInputs(flowsheet,0,Solid_M=691.4,Solid_T=1283,Solid_x=solid_x_ptb,
+    gas_y_ptb = {'CO2':0.04999, 'H2O':0.00001, 'CH4':0.95}
+    #perturbInputs(flowsheet,0,Solid_M=691.4,Solid_T=1283.15,Solid_x=solid_x_ptb,
     #        Gas_F=150,Gas_T=350,Gas_y=gas_y_ptb)
     for t in mb.t:
-        perturbInputs(flowsheet,t,Solid_M=691.4)
+        ptb_inputs(flowsheet, t, Solid_M=691.4)
+
+    ss_final = ss_sim.main(Solid_M=691.4)
+
+    with open('ss_init.txt', 'w') as f:
+        ss_init.display(ostream=f)
+
+    with open('ss_fin.txt', 'w') as f:
+        ss_final.display(ostream=f)
 
     # should put this in a dedicated ~intialize~ function
     # that also intelligently initializes the model after perturbation
@@ -500,8 +465,8 @@ def main():
     mb.mFe_mAl.fix(0.0)
     mb.Solid_Out_M_Comp.fix()
 
+    # choose how to calculate certain algebraic variables:
     mb.eq_c5.deactivate()
-    
 
     # Create a solver
     tol = 1e-8
@@ -510,97 +475,39 @@ def main():
                    'linear_solver' : 'ma57',
                    'bound_push': 1e-8,
                    'max_cpu_time': 600,
-                   'print_level': 5}
-                   #'halt_on_ampl_error': 'yes'}
+                   'print_level': 5,
+                   'output_file': 'ipopt_out.txt',
+                   'linear_system_scaling': 'mc19',
+                   #'linear_scaling_on_demand' : 'yes',
+                   'halt_on_ampl_error': 'yes'}
 
     # initialized at steady state, works regardless:
     flowsheet.strip_bounds()
 
-    #for z in mb.z:
-    #    for t in mb.t:
-    #        mb.Cg[z,'CH4',t].setlb(1e-8)
+    print_violated_constraints(flowsheet,tol)
 
     for t in mb.t:
         alg_update(flowsheet,t)
         update_time_derivatives(flowsheet,t)
 
+    create_suffixes(flowsheet)
+    create_scale_values(mb.Cg, flowsheet, ss_init, ss_final)
 
-    print_violated_constraints(flowsheet,tol)
+    for k in mb.scaling_factor:
+        print(k.name, mb.scaling_factor[k])
 
-    nlp_ss = PyomoNLP(ss_flowsheet)
-    x_ss = get_vector_from_flowsheet(nlp_ss,ss_flowsheet)
-    jac_ss = nlp_ss.jacobian_g(x_ss)
+    pdb.set_trace()
 
-    print('calculating steady state condition number...')
-    ss_condition = np.linalg.cond(jac_ss.toarray())
-    print('steady state condition number: ',ss_condition)
+    #fs_list = clc_integrate(mb)
+    #for t in fs_list:
+    #    load_fe(fs_list[t], flowsheet, t)
 
-    fig1,ax1 = plt.subplots()
-    ax1.jac_ss = plt.spy(jac_ss)
-    ax1.set_facecolor('none')
-    fig1.savefig('jac_ss.png',facecolor='none',edgecolor='none')#'#f2f2f2',edgecolor='none')
+    with open('dyn_scaled_init.txt','w') as f:
+        flowsheet.display(ostream=f)
 
-
-
-    nlp = PyomoNLP(flowsheet)
-    v_order = nlp.variable_order()
-    c_order = nlp.constraint_order()
-    x = get_vector_from_flowsheet(nlp,flowsheet)
-    lam = nlp.create_vector_y()
-
-    jac_c = nlp.jacobian_g(x)
-    hess_lag = nlp.hessian_lag(x,lam)
-    kkt = BlockSymMatrix(2)
-    kkt[0,0] = hess_lag
-    kkt[1,0] = jac_c
-
-    fig2,ax2 = plt.subplots()
-    ax2.jac_c = plt.spy(jac_c)
-    ax2.set_facecolor('none')
-    fig2.savefig('jac_c.png',facecolor='none',edgecolor='none')
-
-
-    #MA27 = hsl.MA27_LinearSolver()
-    #jac_row_fortran = np.zeros(jac_c.nnz,dtype=np.intc) 
-    #jac_col_fortran = np.zeros(jac_c.nnz,dtype=np.intc)
-    #values = jac_c.data
-    #for i in range(0,jac_c.nnz):
-    #    jac_row_fortran[i] = int(jac_c.row[i] + 1)
-    #    jac_col_fortran[i] = int(jac_c.col[i] + 1)
-    #print('Doing symbolic factorization...')
-    #MA27.DoSymbolicFactorization(nlp.nx,jac_row_fortran,jac_col_fortran)
-
-    #print(jac_row_fortran)
-    #print(jac_col_fortran)
-    #print('Doing numeric factorization...')
-    #num_status = MA27.DoNumericFactorization(nlp.nx,values)
-    #print('Status: ',num_status)
-
-    #jac_indices = range(0,jac_c.nnz)
-    #for i in range(0,jac_c.nnz):
-    #    if np.abs(values[i]) <= 1e-6:
-    #        print('%0.2e'%values[i],str(jac_indices[i])+'-th nonzero.',jac_c.row[i],jac_c.col[i],
-    #                c_order[jac_c.row[i]],v_order[jac_c.col[i]])
-
-    #plot_switch = 0
-    #if plot_switch == 1:
-    #    fig,ax = plt.subplots()
-    #    jac_value_plot = ax.bar(jac_indices,values)
-    #    ax.set_yscale('log')
-    #    fig.savefig('plots/jac_values.png')
-
-    print('calculating condition number...')
-    condition = np.linalg.cond(jac_c.toarray())
-    print('condition number: ',condition)
-
-    #mb.input_objective = Objective(expr=sum((mb.Solid_In_M[t] -601.4)**2 for t in mb.t))
-
-    flowsheet.write('fs_dyn.nl')
-
-    #with open('factorized_fs.txt','w') as f:
-    #    flowsheet.display(ostream=f)
-
+    mb.cont_param.set_value(1)
+    
     return flowsheet
     
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

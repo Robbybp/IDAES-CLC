@@ -23,6 +23,27 @@ import time
 from idaes_models.core import FlowsheetModel, ProcBlock
 import ss_mb_clc as MB_CLC_fuel
 
+def perturb_inputs(fs, **kwargs):
+    m = fs.MB_fuel
+    if 'Solid_M' in kwargs:
+        m.Solid_In_M.fix(kwargs['Solid_M'])
+    if 'Solid_T' in kwargs:
+        m.Solid_In_Ts[t].fix(kwargs['Solid_T'])
+    if 'Solid_x' in kwargs:
+        m.Solid_In_x['Fe2O3'].fix(kwargs['Solid_x']['Fe2O3'])
+        m.Solid_In_x['Fe3O4'].fix(kwargs['Solid_x']['Fe3O4'])
+        m.Solid_In_x['Al2O3'].fix(kwargs['Solid_x']['Al2O3'])
+    if 'Gas_F' in kwargs:
+        m.Gas_In_F.fix(kwargs['Gas_F'])
+    if 'Gas_P' in kwargs:
+        m.Gas_In_P.fix(kwargs['Gas_P'])
+    if 'Gas_T' in kwargs:
+        m.Gas_In_T.fix(kwargs['Gas_T'])
+    if 'Gas_y' in kwargs:
+        m.Gas_In_y['CO2'].fix(kwargs['Gas_y']['CO2'])
+        m.Gas_In_y['H2O'].fix(kwargs['Gas_y']['H2O'])
+        m.Gas_In_y['CH4'].fix(kwargs['Gas_y']['CH4'])
+
 @ProcBlock("Flowsheet")
 class _Flowsheet(FlowsheetModel):
     def __init__(self, *args, **kwargs):
@@ -331,7 +352,7 @@ def results_plot_fuel_reactor(self):
     plt.ylabel("Fraction of metal oxide converted [%]") 
                        
        
-def main():
+def main(**kwargs):
     """
     Make the flowsheet object and solve
     """
@@ -385,9 +406,30 @@ def main():
     # Plot some variables 
     #results_plot_fuel_reactor(flowsheet) 
 
+    m = flowsheet.MB_fuel
+    if 'Solid_M' in kwargs:
+        m.Solid_In_M.fix(kwargs['Solid_M'])
+    if 'Solid_T' in kwargs:
+        m.Solid_In_Ts[t].fix(kwargs['Solid_T'])
+    if 'Solid_x' in kwargs:
+        m.Solid_In_x['Fe2O3'].fix(kwargs['Solid_x']['Fe2O3'])
+        m.Solid_In_x['Fe3O4'].fix(kwargs['Solid_x']['Fe3O4'])
+        m.Solid_In_x['Al2O3'].fix(kwargs['Solid_x']['Al2O3'])
+    if 'Gas_F' in kwargs:
+        m.Gas_In_F.fix(kwargs['Gas_F'])
+    if 'Gas_P' in kwargs:
+        m.Gas_In_P.fix(kwargs['Gas_P'])
+    if 'Gas_T' in kwargs:
+        m.Gas_In_T.fix(kwargs['Gas_T'])
+    if 'Gas_y' in kwargs:
+        m.Gas_In_y['CO2'].fix(kwargs['Gas_y']['CO2'])
+        m.Gas_In_y['H2O'].fix(kwargs['Gas_y']['H2O'])
+        m.Gas_In_y['CH4'].fix(kwargs['Gas_y']['CH4'])
+
+    results = opt.solve(flowsheet, tee=True)
+
     with open('ss_fs.txt','w') as f:
         flowsheet.display(ostream=f)
-
 
     dt_Gflux_CO2    = []
     dt_Gflux_H2O    = []

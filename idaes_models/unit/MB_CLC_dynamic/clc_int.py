@@ -669,8 +669,10 @@ def implicit_integrate(fs):
                    'bound_push': 1e-8,
                    'max_cpu_time': 600,
                    'print_level': 5,
-                   'linear_system_scaling': 'mc19',
-                   'linear_scaling_on_demand': 'no',
+                   'linear_system_scaling': 'none',
+                   #'linear_scaling_on_demand': 'no',
+                   #'nlp_scaling_method': 'none',
+                   #'nlp_scaling_max_gradient': 1e6,
                    'halt_on_ampl_error': 'yes'}
     
     results = opt.solve(fs,tee=True)
@@ -863,7 +865,6 @@ def clc_integrate(mb):
     
     time_set.pop()
     
-
     # set initial conditions to steady state
     for fe in time_set:
         setICs(fs_list[fe],ss_flowsheet)
