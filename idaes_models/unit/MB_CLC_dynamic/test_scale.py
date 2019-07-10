@@ -493,10 +493,10 @@ def main():
     create_suffixes(flowsheet)
     create_scale_values(mb.Cg, flowsheet, ss_init, ss_final)
 
-    for k in mb.scaling_factor:
-        print(k.name, mb.scaling_factor[k])
+    #for k in mb.scaling_factor:
+    #    print(k.name, mb.scaling_factor[k])
 
-    pdb.set_trace()
+    #pdb.set_trace()
 
     #fs_list = clc_integrate(mb)
     #for t in fs_list:
