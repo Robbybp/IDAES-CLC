@@ -39,7 +39,7 @@ from clc_int import alg_update, integrate, update_time_derivatives, implicit_int
 from utils import load_fe, write_results
 from utils import perturbInputs as ptb_inputs
 from dyn_scale import (replace_variables, create_suffixes, is_indexed_by,
-                       get_non_time_index, create_scale_values)
+                       get_non_time_index, create_scale_values, update_constraints)
 
 import csv
 import os
@@ -492,6 +492,7 @@ def main():
 
     create_suffixes(flowsheet)
     create_scale_values(mb.Cg, flowsheet, ss_init, ss_final)
+    update_constraints(flowsheet)
 
     #for k in mb.scaling_factor:
     #    print(k.name, mb.scaling_factor[k])
