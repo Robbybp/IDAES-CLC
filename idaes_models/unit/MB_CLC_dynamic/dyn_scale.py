@@ -14,7 +14,7 @@ class DeviationVisitor(ExpressionReplacementVisitor):
 
     def visiting_potential_leaf(self, node):
         print('node:', node)
-        if node.__class__ in native_numeric_types:
+        if node.__class__ in native_numeric_types or isinstance(node, NumericConstant):
             return True, node
 
         if node.is_variable_type():
@@ -25,7 +25,7 @@ class DeviationVisitor(ExpressionReplacementVisitor):
                     print('replacing')
                     return True, node.dev_exp[node.index().expr]
             except AttributeError:
-                pass
+                return True, node
                 
         return False, node
 
@@ -47,6 +47,7 @@ def walk_tree(expr):
 
 def replace_variables(expr):
     visitor = DeviationVisitor()
+#    pdb.set_trace()
     return visitor.dfs_postorder_stack(expr)
 
 def is_indexed_by(var, s):
