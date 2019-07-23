@@ -39,7 +39,7 @@ from clc_int import alg_update, integrate, update_time_derivatives, implicit_int
 from utils import load_fe, write_results
 from utils import perturbInputs as ptb_inputs
 from dyn_scale import (replace_variables, create_suffixes, is_indexed_by,
-                       get_non_time_index, create_scale_values, update_constraints)
+                       get_non_time_index, create_scale_values, update_constraint)
 
 import csv
 import os
@@ -121,6 +121,26 @@ class _Flowsheet(FlowsheetModel):
                 nfe_t = 12,   #  "  "
                 ncp_t = 1) # was 3
 
+def write_constraint_expressions(con_data):
+# con_data is a list of constraint data objects to check for deviation expressions
+# could make this more modular by writing one constraint at a time
+    with open('constraints.txt', 'w') as f1:
+        with open('updated_constraints.txt', 'w') as f2:
+            for con in con_data:
+                line1 = con.local_name + ' '
+                line2 = con.local_name + ' '
+                # con.expr contains some replaced variables and some 
+                # not-replaced variables
+                line1 = (line1 + con.expr.to_string())
+                try:
+                    line2 = (line2 + con.parent_component().dev_con[
+                            con.index()].expr.to_string())
+                except:
+                    line2 = line2 + ' has no .dev_con attribute'
+                line1 = line1 + '\n'
+                line2 = line2 + '\n'
+                f1.write(line1)
+                f2.write(line2)
     
 def setInputs(fs):    
     # ===== Fuel Reactor ===== 
@@ -174,7 +194,6 @@ def setICs(fs,fs_ss):
     diff_vars_t.append('q')
     diff_vars_t.append('Tg')
     diff_vars_t.append('Ts')
-
 
     for var_ss in fs_ss.MB_fuel.component_objects(Var,active=True):
         var_name = var_ss.getname()
@@ -490,18 +509,103 @@ def main():
         alg_update(flowsheet,t)
         update_time_derivatives(flowsheet,t)
 
+    constraint_list = []
+    for c in mb.component_objects(Constraint):
+        constraint_list.append(c)
     create_suffixes(flowsheet)
-    create_scale_values(mb.Cg, flowsheet, ss_init, ss_final)
-    update_constraints(flowsheet)
+    vars_to_scale = []
+    data_scaled = []
+    con_data_2update = []
+    for var in mb.component_objects(Var):
+        # need static list of vars to scale
+        vars_to_scale.append(var)
+    for var in mb.component_data_objects(Var):
+        # should I create parallel blocks of scaled/unscaled constraints?
+        data_scaled.append(var)
+    for con in mb.component_data_objects(Constraint):
+        con_data_2update.append(con)
+    # should separate variables into input/response variables
+    # only scale response variables, or have separate function to 
+    # scale input variables
+    # 
+    # or, an is_alg_fcn_of() function would be nice, but probably very
+    # difficult to implement
+    # 
+    # should be able to partition variables into useful categories...
+    # differential, algebraic-important, algebraic-auxiliary, time-derivative,
+    # space-derivative, geometric, (parameter,) input, input-algebraic
+    # 
+    # such a partition would be incredibly powerful for a variety of applications
+    # e.g. identifying degrees of freedom, index reduction, initialization, 
+    #      model simplification
 
-    #for k in mb.scaling_factor:
-    #    print(k.name, mb.scaling_factor[k])
+    diff_vars = [mb.Cg, mb.q, mb.Tg, mb.Ts]
+    alg_vars = [mb.Gas_Out_P, mb.Solid_Out_M, mb.Solid_Out_Ts, mb.Solid_Out_x,
+                mb.CgT, mb.Ctrans, mb.G_flux, mb.X_gas, mb.y, mb.ytot, mb.Ftotal,
+                mb.F, mb.Gas_M, mb.qT, mb.qtrans, mb.S_flux, mb.X_OC, mb.x,
+                mb.xtot, mb.Solid_M_total, mb.Solid_M, mb.Solid_F_total,
+                mb.Solid_F, mb.mFe_mAl, mb.P, mb.Tg_GS, mb.Ts_dHr, mb.vg,
+                mb.umf, mb.v_diff, mb.Rep, mb.Pr, mb.Pr_ext, mb.Ra, mb.Nu, mb.hf,
+                mb.Gh_flux, mb.Sh_flux, mb.DH_rxn_s, mb.cp_sol, mb.MW_vap, 
+                mb.rho_vap, mb.mu_vap, mb.cp_gas, mb.cp_vap, mb.k_cpcv, mb.k_vap,
+                mb.X, mb.X_term, mb.k, mb.r_gen, mb.rg, mb.rs, mb.dG_fluxdz,
+                mb.dS_fluxdz, mb.dPdz, mb.dGh_fluxdz, mb.dSh_fluxdz]
+    dyn_vars = diff_vars + alg_vars
+    constraints_to_scan = []
+    for con in mb.component_objects(Constraint):
+        constraints_to_scan.append(con)
+    for var in dyn_vars:
+        print(var.name)
+        create_scale_values(var, flowsheet, ss_init, ss_final)
+    #create_scale_values(mb.Cg, flowsheet, ss_init, ss_final)
+    #with open('pre_constraint_update.txt', 'w') as f:
+    #    flowsheet.display(ostream=f)
+    for con in constraints_to_scan:
+        # probably need to selectively update constraints as well
+        print(con.name)
+        update_constraint(con, flowsheet)
+    # TODO: -check that constraints have been properly updated,
+    #       -check for violated constraints (in this single element), 
+    #        ^ should only be discretization equations...
+    #       -try to solve model
+    #       -have not scaled constraints yet, but should still solve...
 
-    #pdb.set_trace()
+    #update_constraint(mb.eq_c4, flowsheet)
+    #update_constraint(mb.eq_b1, flowsheet)
+    #update_constraint(mb.eq_a2, flowsheet)
+    #update_constraint(mb.eq_p2, flowsheet)
 
-    #fs_list = clc_integrate(mb)
-    #for t in fs_list:
-    #    load_fe(fs_list[t], flowsheet, t)
+    with open('scale_vars.txt', 'w') as f:
+    # per custom, I should replace this with a 'write_scale_vars()' function
+
+    #    line = ''
+    #    for var in m.component_objects(Var):
+    #        if isinstance(var, SimpleVar):
+    #            line = line + var.name + ' ' + str(var.value)
+    #            # ^probably need to re-format this value string
+    #            try:
+    #                if var.has_dev_exp == True:
+    #                    line = line + '\t' + var.dev.name + ' ' + str(value(var.dev))
+    #            except AttributeError:
+    #                pass
+    #        else:
+    #            try:
+    #                if var.has_dev_exp == True:
+    #                    for index in var:
+        for var in data_scaled:
+            line = var.local_name + ' '
+            try:
+                if var.parent_component().has_dev_exp == True:
+                    line = (line + var.parent_component().dev_exp[
+                        var.index()].expr.to_string())
+            except AttributeError:
+                line = line + ' has no deviation expression'
+            line = line + '\n'
+            f.write(line)
+
+    write_constraint_expressions(con_data_2update)
+    #print(mb.eq_p2[0.00062,0].expr.to_string())
+    #print(mb.eq_p2.dev_con[0.00062,0].expr.to_string())
 
     with open('dyn_scaled_init.txt','w') as f:
         flowsheet.display(ostream=f)
