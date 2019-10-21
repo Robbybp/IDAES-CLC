@@ -59,6 +59,6 @@ sympy==1.4
 toml==0.10.0
 tox==3.7.0
 traitlets==4.3.2
-urllib3==1.24.1
+urllib3==1.24.2
 virtualenv==16.3.0
 wcwidth==0.1.7
