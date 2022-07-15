@@ -6,7 +6,7 @@ bunch==1.0.1
 casadi==3.4.5
 certifi==2018.11.29
 chardet==3.0.4
-codecov==2.0.15
+codecov==2.0.16
 cov-core==1.15.0
 coverage==5.0a4
 cycler==0.10.0
